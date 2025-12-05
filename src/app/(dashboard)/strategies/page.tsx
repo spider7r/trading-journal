@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getStrategies, deleteStrategy } from './actions'
 import { cn } from '@/lib/utils'
 import { CreateStrategyModal } from '@/components/strategies/CreateStrategyModal'
+import Link from 'next/link'
 
 export default function StrategiesPage() {
     const [strategies, setStrategies] = useState<any[]>([])

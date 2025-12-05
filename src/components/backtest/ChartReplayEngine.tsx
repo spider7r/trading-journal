@@ -14,13 +14,17 @@ import {
     RotateCcw, Plus, Newspaper, BookOpen, BarChart2
 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { timezones } from '@/lib/timezones'
 
 import { BacktestToolbar } from './BacktestToolbar'
-import { OrderEntryPanel } from './OrderEntryPanel'
-import { BacktestEngine, Order, Trade } from '@/lib/backtest-engine'
+import { BacktestTopBar } from './BacktestTopBar'
+import { BacktestBottomBar } from './BacktestBottomBar'
+import { PlaceOrderDialog } from './PlaceOrderDialog'
+import { BacktestEngine, Order, Trade, ChallengeStatus } from '@/lib/backtest-engine'
 import { TimeframeSelector } from './TimeframeSelector'
 import { ChartContextMenu } from './ChartContextMenu'
+import { ChallengeStatusWidget } from './ChallengeStatusWidget'
 
 interface ChartReplayEngineProps {
     initialSession?: any
@@ -45,6 +49,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
     const [trades, setTrades] = useState<Trade[]>([])
     const [orders, setOrders] = useState<Order[]>([])
     const [maxDrawdown, setMaxDrawdown] = useState(0)
+    const [challengeStatus, setChallengeStatus] = useState<ChallengeStatus | undefined>(initialSession?.challenge_status)
 
     // Session State
     const [sessionId, setSessionId] = useState<string | null>(initialSession?.id || null)
@@ -145,7 +150,21 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                         toast.error('Failed to save trade to database')
                     }
                 }
-            }, mappedTrades)
+            }, mappedTrades,
+                initialSession?.challenge_rules,
+                initialSession?.challenge_status,
+                async (status) => {
+                    setChallengeStatus({ ...status }) // Force update
+                    if (sessionId) {
+                        try {
+                            await updateBacktestSession(sessionId, {
+                                challenge_status: status
+                            })
+                        } catch (error) {
+                            console.error('Failed to update challenge status:', error)
+                        }
+                    }
+                })
         }
     }, [sessionId, initialTrades, balance])
 
@@ -183,8 +202,43 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
             // Fetch more data for higher timeframes to ensure we don't run out
             const limit = interval === 'D' || interval === '1W' ? 5000 : 2000
 
+            let data: any[] = []
+
             try {
-                const data = await fetchMarketData(pair, interval, limit, fetchStartTime, endTime)
+                // 1. Try to use pre-loaded session data
+                // 1. Try to use pre-loaded session data
+                // Only use if it matches the requested interval!
+                let useStoredData = false
+                if (initialSession?.candle_data && Array.isArray(initialSession.candle_data) && initialSession.candle_data.length > 1) {
+                    // Infer interval from stored data
+                    const t1 = initialSession.candle_data[0].time
+                    const t2 = initialSession.candle_data[1].time
+                    const deltaSec = t2 - t1
+
+                    // Map requested interval to seconds
+                    let requestedSec = 3600 // Default 1h
+                    if (interval === '1m') requestedSec = 60
+                    else if (interval === '5m') requestedSec = 300
+                    else if (interval === '15m') requestedSec = 900
+                    else if (interval === '1h') requestedSec = 3600
+                    else if (interval === '4h') requestedSec = 14400
+                    else if (interval === '1d' || interval === 'D') requestedSec = 86400
+                    else if (interval === '1w' || interval === 'W') requestedSec = 604800
+
+                    if (deltaSec === requestedSec) {
+                        useStoredData = true
+                    } else {
+                        console.log(`Stored data interval (${deltaSec}s) does not match requested (${requestedSec}s). Fetching new data.`)
+                    }
+                }
+
+                if (useStoredData) {
+                    console.log('Using pre-loaded candle data from session')
+                    data = initialSession.candle_data
+                } else {
+                    // 2. Fallback to fetching (or if interval mismatch)
+                    data = await fetchMarketData(pair, interval, limit, fetchStartTime, endTime)
+                }
 
                 if (!isMounted) return
 
@@ -199,17 +253,17 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
 
                 if (currentTime) {
                     // Case 1: Switching timeframe - maintain current replay time
-                    const foundIndex = data.findIndex(c => (c.time as number) >= currentTime!)
+                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= currentTime!)
                     newIndex = foundIndex !== -1 ? foundIndex : data.length - 1
                 } else if (lastReplayTime) {
                     // Case 2: Resuming session - go to last saved time
-                    const foundIndex = data.findIndex(c => (c.time as number) >= lastReplayTime)
+                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= lastReplayTime)
                     newIndex = foundIndex !== -1 ? foundIndex : data.length - 1
                 } else if (startTime) {
                     // Case 3: New session with start date - find index of start date
                     // Convert startTime (ms) to seconds for comparison
                     const startTimeSec = startTime / 1000
-                    const foundIndex = data.findIndex(c => (c.time as number) >= startTimeSec)
+                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= startTimeSec)
                     newIndex = foundIndex !== -1 ? foundIndex : 0
                 } else {
                     // Case 4: No specific start - start from middle
@@ -220,6 +274,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                 setFullData(data)
                 setCurrentIndex(newIndex)
                 setVisibleData(data.slice(0, newIndex + 1))
+
             } catch (error) {
                 console.error("Failed to fetch data", error)
                 toast.error("Failed to load chart data")
@@ -227,6 +282,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                 if (isMounted) setIsLoading(false)
             }
         }
+
         loadData()
 
         return () => { isMounted = false }
@@ -307,6 +363,22 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                 title: `${order.type} ${order.side}`,
                 lineStyle: 2
             })
+            if (order.stopLoss) {
+                lines.push({
+                    price: order.stopLoss,
+                    color: '#ef4444',
+                    title: 'SL',
+                    lineStyle: 2
+                })
+            }
+            if (order.takeProfit) {
+                lines.push({
+                    price: order.takeProfit,
+                    color: '#3b82f6',
+                    title: 'TP',
+                    lineStyle: 2
+                })
+            }
         })
 
         return lines
@@ -429,80 +501,19 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
     return (
         <div className="flex flex-col h-screen bg-[#000000] text-[#d1d4dc] overflow-hidden font-sans select-none">
             {/* Top Navigation Bar */}
-            <div className="h-12 bg-[#131722] border-b border-[#2a2e39] flex items-center justify-between px-3 shrink-0 z-50">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" className="text-[#d1d4dc] hover:text-white hover:bg-[#2a2e39]">
-                        <ArrowLeft className="w-5 h-5" />
-                    </Button>
-                    <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">GG</span>
-                        <Settings className="w-4 h-4 text-[#787b86]" />
-                    </div>
-                </div>
-
-                {/* Replay Controls (Draggable) */}
-                <div
-                    className="absolute z-50 flex items-center bg-[#1e222d] rounded-full border border-[#2a2e39] p-1 gap-2 shadow-lg select-none"
-                    style={{
-                        left: controlPosition.x,
-                        top: controlPosition.y,
-                        transform: 'translate(-50%, 0)'
-                    }}
-                >
-                    <div
-                        className="flex items-center px-2 cursor-move text-[#787b86]"
-                        onMouseDown={handleDragStart}
-                    >
-                        <div className="grid grid-cols-2 gap-0.5">
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                            <div className="w-1 h-1 bg-current rounded-full" />
-                        </div>
-                    </div>
-
-                    <div className="h-6 w-px bg-[#2a2e39]" />
-
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d1d4dc] hover:bg-[#2a2e39] rounded-full" onClick={() => setCurrentIndex(0)}>
-                        <SkipBack className="w-4 h-4" />
-                    </Button>
-
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d1d4dc] hover:bg-[#2a2e39] rounded-full" onClick={() => setIsPlaying(!isPlaying)}>
-                        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                    </Button>
-
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d1d4dc] hover:bg-[#2a2e39] rounded-full" onClick={stepForward}>
-                        <StepForward className="w-4 h-4" />
-                    </Button>
-
-                    <div className="h-6 w-px bg-[#2a2e39]" />
-
-                    <div className="w-32 px-2 flex items-center">
-                        <div className="h-1 bg-[#2a2e39] rounded-full w-full relative">
-                            <div
-                                className="absolute h-3 w-3 bg-[#2962ff] rounded-full top-1/2 -translate-y-1/2 shadow-sm cursor-pointer"
-                                style={{ left: `${(speed / 2000) * 100}%` }} // Rough mapping
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-sm text-[#d1d4dc]">
-                        <RotateCcw className="w-4 h-4" />
-                        <span>Go To 0/3</span>
-                    </div>
-                    <Button className="bg-[#2a2e39] hover:bg-[#363a45] text-white text-xs h-8 px-3 rounded">
-                        <Plus className="w-3 h-3 mr-1" /> Place Order
-                    </Button>
-                    <div className="flex items-center gap-3 text-sm text-[#d1d4dc]">
-                        <div className="flex items-center gap-1"><Newspaper className="w-4 h-4" /> News</div>
-                        <div className="flex items-center gap-1"><BookOpen className="w-4 h-4" /> Journal</div>
-                    </div>
-                </div>
-            </div>
+            <BacktestTopBar
+                sessionName={initialSession?.name || 'Untitled Session'}
+                currentIndex={currentIndex}
+                totalCandles={fullData.length}
+                isPlaying={isPlaying}
+                speed={speed}
+                onPlayPause={() => setIsPlaying(!isPlaying)}
+                onStepBack={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                onStepForward={stepForward}
+                onSeek={setCurrentIndex}
+                onSpeedChange={setSpeed}
+                onPlaceOrder={() => setShowOrderPanel(true)}
+            />
 
             {/* Secondary Toolbar (Chart Controls) */}
             <div className="h-[38px] bg-[#131722] border-b border-[#2a2e39] flex items-center px-2 gap-1 shrink-0">
@@ -578,83 +589,45 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                             onAction={handleContextAction}
                         />
                     )}
+
+                    {/* Prop Firm Widget */}
+                    {initialSession?.session_type === 'PROP_FIRM' && (
+                        <div className="absolute top-4 right-16 z-30 w-80">
+                            <ChallengeStatusWidget
+                                rules={initialSession.challenge_rules}
+                                status={challengeStatus}
+                                currentBalance={balance}
+                                initialBalance={initialSession.initial_balance}
+                                equity={equity}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Bottom Trading Panel */}
-            <div className="h-14 border-t border-[#2a2e39] bg-[#131722] flex items-center px-4 justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                    <Button
-                        className="bg-[#00bfa5] hover:bg-[#00897b] text-white font-bold h-9 px-6 min-w-[100px]"
-                        onClick={() => handleQuickOrder('LONG')}
-                    >
-                        Buy
-                    </Button>
-                    <Button
-                        className="bg-[#ff5252] hover:bg-[#d32f2f] text-white font-bold h-9 px-6 min-w-[100px]"
-                        onClick={() => handleQuickOrder('SHORT')}
-                    >
-                        Sell
-                    </Button>
-                    <div className="flex items-center bg-[#2a2e39] rounded h-9 px-3 border border-[#363a45]">
-                        <span className="text-xs text-[#787b86] mr-2">Quantity</span>
-                        <Input
-                            type="number"
-                            value={quantity}
-                            onChange={(e) => setQuantity(parseFloat(e.target.value))}
-                            className="w-16 bg-transparent border-none text-white p-0 h-full text-right focus-visible:ring-0"
-                        />
-                    </div>
-                </div>
-
-                <Button variant="outline" className="border-[#2a2e39] text-[#d1d4dc] hover:bg-[#2a2e39] h-9 gap-2">
-                    <BarChart2 className="w-4 h-4" /> Analytics
-                </Button>
-
-                <div className="flex items-center gap-6 text-sm">
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-[#787b86] uppercase">Account Balance</span>
-                        <span className="font-mono text-white">${balance.toLocaleString()}</span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-[#787b86] uppercase">Realized PnL</span>
-                        <span className={`font-mono ${realizedPnl >= 0 ? 'text-[#00bfa5]' : 'text-[#ff5252]'}`}>
-                            ${realizedPnl.toLocaleString()}
-                        </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-[#787b86] uppercase">Unrealized PnL</span>
-                        <span className={`font-mono ${unrealizedPnl >= 0 ? 'text-[#00bfa5]' : 'text-[#ff5252]'}`}>
-                            ${unrealizedPnl.toLocaleString()}
-                        </span>
-                    </div>
-
-                    <div className="h-8 w-px bg-[#2a2e39] mx-2" />
-
-                    <Select value={timezone} onValueChange={setTimezone}>
-                        <SelectTrigger className="bg-transparent border-none text-[#d1d4dc] h-8 text-xs font-medium hover:text-white w-[140px] justify-end px-0 focus:ring-0">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc] max-h-[300px]" align="end">
-                            {timezones.map((tz) => (
-                                <SelectItem key={tz.value} value={tz.value} className="text-xs focus:bg-[#2a2e39] focus:text-white">
-                                    {tz.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+            <BacktestBottomBar
+                balance={balance}
+                equity={equity}
+                realizedPnl={realizedPnl}
+                unrealizedPnl={unrealizedPnl}
+                quantity={quantity}
+                onQuantityChange={setQuantity}
+                onBuy={() => handleQuickOrder('LONG')}
+                onSell={() => handleQuickOrder('SHORT')}
+                onAnalytics={() => { }}
+            />
 
             <Dialog open={showOrderPanel} onOpenChange={setShowOrderPanel}>
                 <DialogContent className="sm:max-w-[400px] bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc]">
                     <DialogHeader>
                         <DialogTitle>Place New Order</DialogTitle>
                     </DialogHeader>
-                    <OrderEntryPanel
+                    <PlaceOrderDialog
                         currentPrice={currentPrice}
                         balance={balance}
                         onPlaceOrder={handlePlaceOrder}
+                        onClose={() => setShowOrderPanel(false)}
                     />
                 </DialogContent>
             </Dialog>

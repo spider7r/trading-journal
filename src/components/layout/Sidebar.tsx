@@ -38,7 +38,7 @@ export function Sidebar() {
     const accountId = searchParams.get('accountId')
 
     return (
-        <div className="hidden h-full w-72 flex-col border-r border-zinc-800/50 bg-zinc-900/50 backdrop-blur-xl lg:flex">
+        <div className="hidden h-full w-60 flex-col border-r border-zinc-800/50 bg-zinc-900/50 backdrop-blur-xl lg:flex">
             <div className="flex h-20 items-center gap-x-3 px-6 border-b border-zinc-800/50">
                 <div className="relative h-8 w-8 overflow-hidden rounded-lg">
                     <Image

@@ -43,60 +43,58 @@ export function BacktestToolbar({
     ]
 
     return (
-        <div className="w-full flex flex-col items-center gap-4 shrink-0">
-            <div className="flex flex-col gap-1 w-full px-1">
+        <div className="flex flex-col items-center gap-4 shrink-0 py-4">
+            <div className="flex flex-col gap-1 bg-[#1E222D] p-1.5 rounded-lg border border-[#2a2e39] shadow-lg shadow-black/20">
                 {tools.map((tool) => (
                     <Button
                         key={tool.id}
                         variant="ghost"
                         size="icon"
-                        className={`h-8 w-full rounded-md ${activeTool === tool.id ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#2a2e39]'}`}
+                        className={`h-9 w-9 rounded-md transition-all ${activeTool === tool.id ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]'}`}
                         onClick={() => onToolSelect(activeTool === tool.id ? null : tool.id)}
                         title={tool.label}
                     >
-                        <tool.icon className="h-4 w-4" />
+                        <tool.icon className="h-5 w-5" />
                     </Button>
                 ))}
             </div>
 
-            <div className="h-px w-6 bg-[#2a2e39]" />
-
-            <div className="flex flex-col gap-1 w-full px-1">
+            <div className="flex flex-col gap-1 bg-[#1E222D] p-1.5 rounded-lg border border-[#2a2e39] shadow-lg shadow-black/20">
                 <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-8 w-full rounded-md ${isMagnet ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#2a2e39]'}`}
+                    className={`h-9 w-9 rounded-md transition-all ${isMagnet ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]'}`}
                     onClick={onToggleMagnet}
                     title="Magnet Mode"
                 >
-                    <Magnet className="h-4 w-4" />
+                    <Magnet className="h-5 w-5" />
                 </Button>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-8 w-full rounded-md ${isLocked ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#2a2e39]'}`}
+                    className={`h-9 w-9 rounded-md transition-all ${isLocked ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]'}`}
                     onClick={onToggleLock}
                     title="Lock All Drawings"
                 >
-                    <Lock className="h-4 w-4" />
+                    <Lock className="h-5 w-5" />
                 </Button>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-8 w-full rounded-md ${areDrawingsHidden ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#2a2e39]'}`}
+                    className={`h-9 w-9 rounded-md transition-all ${areDrawingsHidden ? 'text-[#2962ff] bg-[#2a2e39]' : 'text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]'}`}
                     onClick={onToggleHide}
                     title="Hide All Drawings"
                 >
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-5 w-5" />
                 </Button>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-full rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-[#2a2e39]"
+                    className="h-9 w-9 rounded-md text-[#B2B5BE] hover:text-[#ff5252] hover:bg-[#2a2e39] transition-all"
                     onClick={onRemoveAll}
                     title="Remove All Drawings"
                 >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-5 w-5" />
                 </Button>
             </div>
         </div>

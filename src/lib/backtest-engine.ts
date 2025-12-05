@@ -45,6 +45,25 @@ export interface Trade {
     takeProfit?: number
 }
 
+export interface ChallengeRules {
+    dailyDrawdown: number
+    maxDrawdown: number
+    profitTarget: number
+    timeLimit: number
+    minTradingDays: number
+}
+
+export interface ChallengeStatus {
+    state: 'ACTIVE' | 'PASSED' | 'FAILED'
+    failureReason?: string
+    startDate: string
+    currentDailyDrawdown: number
+    maxDrawdownReached: number
+    daysTraded: number
+    dayStartEquity: number
+    lastDayTimestamp: number
+}
+
 export class BacktestEngine {
     private balance: number
     private equity: number
@@ -53,16 +72,44 @@ export class BacktestEngine {
     private currentQuote: PriceQuote | null = null
 
     private onTradeClosed?: (trade: Trade) => void
+    private onChallengeUpdate?: (status: ChallengeStatus) => void
+
+    private challengeRules?: ChallengeRules
+    private challengeStatus?: ChallengeStatus
+    private initialBalance: number
 
     private maxEquity: number
     private maxDrawdown: number = 0
 
-    constructor(initialBalance: number, onTradeClosed?: (trade: Trade) => void, initialTrades: Trade[] = []) {
+    constructor(
+        initialBalance: number,
+        onTradeClosed?: (trade: Trade) => void,
+        initialTrades: Trade[] = [],
+        challengeRules?: ChallengeRules,
+        initialStatus?: ChallengeStatus,
+        onChallengeUpdate?: (status: ChallengeStatus) => void
+    ) {
         this.balance = initialBalance
+        this.initialBalance = initialBalance
         this.equity = initialBalance
         this.maxEquity = initialBalance
         this.onTradeClosed = onTradeClosed
         this.trades = initialTrades
+
+        this.challengeRules = challengeRules
+        this.onChallengeUpdate = onChallengeUpdate
+
+        if (this.challengeRules) {
+            this.challengeStatus = initialStatus || {
+                state: 'ACTIVE',
+                startDate: new Date().toISOString(),
+                currentDailyDrawdown: 0,
+                maxDrawdownReached: 0,
+                daysTraded: 0,
+                dayStartEquity: initialBalance,
+                lastDayTimestamp: 0
+            }
+        }
     }
 
     private calculateFillPrice(basePrice: number, side: Side, type: OrderType): number {
@@ -111,6 +158,11 @@ export class BacktestEngine {
 
         // 3. Update Equity
         this.updateEquity()
+
+        // 4. Check Challenge Rules
+        if (this.challengeRules && this.challengeStatus && this.challengeStatus.state === 'ACTIVE') {
+            this.checkChallengeRules(candle.time)
+        }
     }
 
     private checkOrders(candle?: { high: number, low: number }) {
@@ -259,5 +311,76 @@ export class BacktestEngine {
 
     public getOrders(): Order[] {
         return this.orders
+    }
+
+    private checkChallengeRules(currentTime: number) {
+        if (!this.challengeRules || !this.challengeStatus) return
+
+        const rules = this.challengeRules
+        const status = this.challengeStatus
+        const currentEquity = this.equity
+
+        // 1. Check Day Change (for Daily Drawdown Reset)
+        const currentDay = Math.floor(currentTime / 86400) // Days since epoch
+        const lastDay = Math.floor(status.lastDayTimestamp / 86400)
+
+        if (currentDay > lastDay) {
+            // New Day Started
+            status.dayStartEquity = currentEquity // Reset daily benchmark to current equity
+            status.daysTraded += 1 // Increment days traded (simplified)
+            status.lastDayTimestamp = currentTime
+            status.currentDailyDrawdown = 0
+        }
+
+        // 2. Calculate Daily Drawdown
+        // Daily DD = (DayStartEquity - CurrentEquity) / DayStartEquity
+        // Only counts if we are below day start equity
+        if (currentEquity < status.dayStartEquity) {
+            const dailyDD = ((status.dayStartEquity - currentEquity) / status.dayStartEquity) * 100
+            status.currentDailyDrawdown = dailyDD
+
+            if (dailyDD >= rules.dailyDrawdown) {
+                this.failChallenge(`Daily Drawdown Limit Exceeded (${dailyDD.toFixed(2)}% / ${rules.dailyDrawdown}%)`)
+                return
+            }
+        } else {
+            status.currentDailyDrawdown = 0
+        }
+
+        // 3. Calculate Max Drawdown
+        // Max Trailing Drawdown = (MaxEquity - CurrentEquity) / MaxEquity
+        const trailingDD = ((this.maxEquity - currentEquity) / this.maxEquity) * 100
+
+        if (trailingDD >= rules.maxDrawdown) {
+            this.failChallenge(`Max Drawdown Limit Exceeded (${trailingDD.toFixed(2)}% / ${rules.maxDrawdown}%)`)
+            return
+        }
+
+        // 4. Check Profit Target
+        const profitPercent = ((currentEquity - this.initialBalance) / this.initialBalance) * 100
+
+        if (profitPercent >= rules.profitTarget) {
+            this.passChallenge(`Profit Target Reached (${profitPercent.toFixed(2)}%)`)
+        }
+
+        if (this.onChallengeUpdate) this.onChallengeUpdate(this.challengeStatus)
+    }
+
+    private failChallenge(reason: string) {
+        if (!this.challengeStatus) return
+        this.challengeStatus.state = 'FAILED'
+        this.challengeStatus.failureReason = reason
+        if (this.onChallengeUpdate) this.onChallengeUpdate(this.challengeStatus)
+    }
+
+    private passChallenge(reason: string) {
+        if (!this.challengeStatus) return
+        this.challengeStatus.state = 'PASSED'
+        this.challengeStatus.failureReason = reason // Reusing field for success message
+        if (this.onChallengeUpdate) this.onChallengeUpdate(this.challengeStatus)
+    }
+
+    public getChallengeStatus() {
+        return this.challengeStatus
     }
 }

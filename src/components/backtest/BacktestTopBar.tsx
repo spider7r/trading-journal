@@ -37,47 +37,52 @@ export function BacktestTopBar({
     onPlaceOrder
 }: BacktestTopBarProps) {
     return (
-        <div className="h-14 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0">
-            {/* Left: Navigation & Session Info */}
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1 text-zinc-400">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+        <div className="h-16 bg-[#131722] border-b border-[#2a2e39] flex items-center justify-between px-4 shrink-0 shadow-sm z-20">
+            {/* Left: Logo & Navigation */}
+            <div className="flex items-center gap-6">
+                {/* Logo */}
                 <div className="flex items-center gap-2">
-                    <span className="font-bold text-zinc-100">{sessionName || 'Untitled Session'}</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500">
-                        <Settings className="h-3 w-3" />
+                    <img src="/logo.svg" alt="Logo" className="h-8 w-auto" />
+                </div>
+
+                <div className="h-6 w-px bg-[#2a2e39]" />
+
+                {/* Navigation */}
+                <div className="flex items-center gap-1 text-[#B2B5BE]">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#2a2e39] hover:text-white transition-colors">
+                        <ChevronLeft className="h-5 w-5" />
                     </Button>
+                    <div className="flex items-center gap-2 px-2">
+                        <span className="font-bold text-white text-sm tracking-wide">{sessionName || 'Untitled Session'}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-[#50535E] hover:text-white hover:bg-transparent">
+                            <Settings className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
                 </div>
             </div>
 
             {/* Center: Replay Controls */}
-            <div className="flex items-center gap-4 flex-1 justify-center max-w-2xl">
+            <div className="flex items-center gap-6 flex-1 justify-center max-w-3xl">
                 {/* Playback Controls */}
-                <div className="flex items-center gap-1 bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-zinc-100" onClick={onStepBack}>
-                        <SkipBack className="h-3 w-3" />
+                <div className="flex items-center gap-1 bg-[#1E222D] rounded-lg p-1 border border-[#2a2e39] shadow-sm">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]" onClick={onStepBack}>
+                        <SkipBack className="h-4 w-4" />
                     </Button>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`h-7 w-7 ${isPlaying ? 'text-emerald-500' : 'text-zinc-100'}`}
+                        className={`h-8 w-8 ${isPlaying ? 'text-emerald-500 bg-emerald-500/10' : 'text-white hover:bg-[#2a2e39]'}`}
                         onClick={onPlayPause}
                     >
-                        {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-zinc-100" onClick={onStepForward}>
-                        <SkipForward className="h-3 w-3" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]" onClick={onStepForward}>
+                        <SkipForward className="h-4 w-4" />
                     </Button>
                 </div>
 
                 {/* Progress Slider */}
-                <div className="flex-1 mx-2">
+                <div className="flex-1 mx-2 group">
                     <Slider
                         value={[currentIndex]}
                         max={totalCandles - 1}
@@ -89,37 +94,40 @@ export function BacktestTopBar({
 
                 {/* Speed Selector */}
                 <Select value={speed.toString()} onValueChange={(v) => onSpeedChange(parseInt(v))}>
-                    <SelectTrigger className="w-[70px] h-8 bg-zinc-900 border-zinc-800 text-xs">
+                    <SelectTrigger className="w-[80px] h-9 bg-[#1E222D] border-[#2a2e39] text-xs text-white focus:ring-0 focus:ring-offset-0">
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="1000">1x</SelectItem>
-                        <SelectItem value="500">2x</SelectItem>
-                        <SelectItem value="100">10x</SelectItem>
-                        <SelectItem value="10">Max</SelectItem>
+                    <SelectContent className="bg-[#1E222D] border-[#2a2e39] text-white">
+                        <SelectItem value="1000">1x Speed</SelectItem>
+                        <SelectItem value="500">2x Speed</SelectItem>
+                        <SelectItem value="100">10x Speed</SelectItem>
+                        <SelectItem value="10">Max Speed</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
                 <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white"
+                    className="h-9 bg-[#2962FF] hover:bg-[#1e54eb] text-white border-none shadow-md shadow-blue-900/20 font-medium px-4"
                     onClick={onPlaceOrder}
                 >
-                    <PlusCircle className="mr-2 h-3 w-3" />
+                    <PlusCircle className="mr-2 h-4 w-4" />
                     Place Order
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-zinc-400">
-                    <Newspaper className="mr-2 h-3 w-3" />
-                    News
-                </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-zinc-400">
-                    <BookOpen className="mr-2 h-3 w-3" />
-                    Journal
-                </Button>
+
+                <div className="h-6 w-px bg-[#2a2e39]" />
+
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="h-9 text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]">
+                        <Newspaper className="mr-2 h-4 w-4" />
+                        News
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-9 text-[#B2B5BE] hover:text-white hover:bg-[#2a2e39]">
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Journal
+                    </Button>
+                </div>
             </div>
         </div>
     )

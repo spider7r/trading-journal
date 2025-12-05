@@ -36,6 +36,34 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
     const [selectedImage, setSelectedImage] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [showSuggestions, setShowSuggestions] = useState(false)
+
+    // Mode Configuration
+    const modes = {
+        coach: {
+            color: '#00E676',
+            gradient: 'from-[#00E676]/20 to-emerald-500/20',
+            icon: Bot,
+            label: 'Coach',
+            description: 'Strategic guidance & performance analysis'
+        },
+        analyst: {
+            color: '#2962ff',
+            gradient: 'from-[#2962ff]/20 to-cyan-500/20',
+            icon: TrendingUp,
+            label: 'Analyst',
+            description: 'Market structure & technical analysis'
+        },
+        psychologist: {
+            color: '#d946ef', // Fuchsia-500
+            gradient: 'from-[#d946ef]/20 to-purple-500/20',
+            icon: BrainCircuit,
+            label: 'Psychologist',
+            description: 'Mindset, discipline & emotional control'
+        }
+    }
+
+    const currentMode = modes[selectedMode]
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -71,6 +99,7 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
         setInput('')
         setSelectedImage(null)
         setIsTyping(true)
+        setShowSuggestions(false) // Hide suggestions after sending
 
         // Context for the AI
         const context = {
@@ -114,51 +143,62 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
     }
 
     return (
-        <div className="flex flex-col gap-8 h-[calc(100vh-6rem)]">
-            {/* Top Section: Chat Area (Full Width) */}
-            <div className="flex-1 flex flex-col rounded-[2rem] border border-zinc-800 bg-zinc-900 overflow-hidden shadow-2xl min-h-[500px]">
+        <div className="flex flex-col gap-8 pb-12">
+            {/* Top Section: Chat Area (Full Width & Full Height) */}
+            <div className="flex-1 flex flex-col rounded-[2rem] border border-zinc-800 bg-zinc-900 overflow-hidden shadow-2xl min-h-[85vh] transition-all duration-500"
+                style={{ borderColor: `${currentMode.color}20` }}
+            >
                 {/* Chat Header */}
-                <div className="p-3 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between">
+                <div className="p-4 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-2xl bg-gradient-to-br from-[#00E676]/20 to-blue-500/20 border border-[#00E676]/30 shadow-lg shadow-[#00E676]/10">
-                            <Bot className="h-5 w-5 text-[#00E676]" />
+                        <div className={`p-2.5 rounded-2xl bg-gradient-to-br ${currentMode.gradient} border border-white/5 shadow-lg relative group`}>
+                            <div className="absolute inset-0 rounded-2xl bg-current opacity-0 group-hover:opacity-10 transition-opacity" style={{ color: currentMode.color }} />
+                            <img src="/logo.svg" alt="AI Avatar" className="h-6 w-6" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-black text-white uppercase italic tracking-tight bg-gradient-to-r from-white via-[#00E676]/50 to-[#00E676] bg-clip-text text-transparent">TJP Buddy</h2>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <span className="relative flex h-1.5 w-1.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00E676] opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#00E676]"></span>
+                            <h2 className="text-xl font-black text-white uppercase italic tracking-tight flex items-center gap-2">
+                                TJP Buddy
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-bold uppercase tracking-wider border border-zinc-700">
+                                    v1.0
                                 </span>
-                                <span className="text-[9px] font-bold text-[#00E676] uppercase tracking-widest">Online</span>
+                            </h2>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: currentMode.color }}></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: currentMode.color }}></span>
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: currentMode.color }}>
+                                    {currentMode.label} Mode Active
+                                </span>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                         {/* Mode Selector */}
-                        <div className="hidden md:flex bg-zinc-950 p-0.5 rounded-xl border border-zinc-800">
-                            {(['coach', 'analyst', 'psychologist'] as const).map((mode) => (
+                        <div className="hidden md:flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                            {(Object.entries(modes) as [keyof typeof modes, typeof modes.coach][]).map(([key, mode]) => (
                                 <button
-                                    key={mode}
-                                    onClick={() => setSelectedMode(mode)}
+                                    key={key}
+                                    onClick={() => setSelectedMode(key)}
                                     className={cn(
-                                        "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
-                                        selectedMode === mode
+                                        "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2",
+                                        selectedMode === key
                                             ? "bg-zinc-800 text-white shadow-sm"
-                                            : "text-zinc-500 hover:text-zinc-300"
+                                            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"
                                     )}
                                 >
-                                    {mode}
+                                    <mode.icon className={cn("h-3 w-3", selectedMode === key ? "text-current" : "")} style={{ color: selectedMode === key ? mode.color : undefined }} />
+                                    {mode.label}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="h-6 w-px bg-zinc-800 mx-1" />
+                        <div className="h-8 w-px bg-zinc-800 mx-2" />
 
                         <button
                             onClick={handleClearChat}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20"
                             title="Clear Chat"
                         >
                             <X className="h-4 w-4" />
@@ -167,62 +207,69 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                 </div>
 
                 {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
                     {messages.map((msg) => (
                         <motion.div
                             key={msg.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             className={cn(
-                                "flex gap-3 max-w-4xl mx-auto w-full",
+                                "flex gap-4 max-w-4xl mx-auto w-full group",
                                 msg.role === 'user' ? "flex-row-reverse" : ""
                             )}
                         >
                             <div className={cn(
-                                "flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center border",
+                                "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center border shadow-lg",
                                 msg.role === 'user'
                                     ? "bg-zinc-800 border-zinc-700"
-                                    : "bg-[#00E676]/10 border-[#00E676]/20"
-                            )}>
-                                {msg.role === 'user' ? <User className="h-4 w-4 text-zinc-400" /> : <Bot className="h-4 w-4 text-[#00E676]" />}
+                                    : `bg-zinc-900 border-[${currentMode.color}]/20`
+                            )}
+                                style={{ borderColor: msg.role === 'assistant' ? `${currentMode.color}40` : undefined }}
+                            >
+                                {msg.role === 'user' ? (
+                                    <User className="h-5 w-5 text-zinc-400" />
+                                ) : (
+                                    <img src="/logo.svg" alt="AI" className="h-6 w-6" />
+                                )}
                             </div>
 
                             <div className={cn(
-                                "p-4 rounded-2xl text-sm leading-relaxed shadow-sm max-w-[85%]",
+                                "p-5 rounded-3xl text-sm leading-relaxed shadow-sm max-w-[85%] relative",
                                 msg.role === 'user'
-                                    ? "bg-zinc-800 text-zinc-100 rounded-tr-none"
+                                    ? "bg-zinc-800 text-zinc-100 rounded-tr-none border border-zinc-700"
                                     : "bg-zinc-950 border border-zinc-800 text-zinc-300 rounded-tl-none"
                             )}>
                                 {msg.image && (
-                                    <div className="mb-3 rounded-xl overflow-hidden border border-zinc-700/50">
-                                        <img src={msg.image} alt="User upload" className="w-full h-auto max-h-80 object-cover" />
+                                    <div className="mb-4 rounded-2xl overflow-hidden border border-zinc-700/50 shadow-md">
+                                        <img src={msg.image} alt="User upload" className="w-full h-auto max-h-96 object-cover" />
                                     </div>
                                 )}
                                 <div className="prose prose-invert prose-sm max-w-none">
                                     <ReactMarkdown
                                         components={{
-                                            h1: ({ node, ...props }) => <h1 className="text-lg font-bold text-white mb-2 mt-3 border-b border-zinc-800 pb-1" {...props} />,
-                                            h2: ({ node, ...props }) => <h2 className="text-base font-bold text-[#00E676] mb-1 mt-3 uppercase tracking-wide flex items-center gap-2" {...props} />,
-                                            h3: ({ node, ...props }) => <h3 className="text-sm font-bold text-zinc-200 mb-1 mt-2" {...props} />,
-                                            ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-4 space-y-1 mb-2 text-zinc-300" {...props} />,
-                                            ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-4 space-y-1 mb-2 text-zinc-300" {...props} />,
+                                            h1: ({ node, ...props }) => <h1 className="text-lg font-bold text-white mb-3 mt-4 border-b border-zinc-800 pb-2" {...props} />,
+                                            h2: ({ node, ...props }) => <h2 className="text-base font-bold mb-2 mt-4 uppercase tracking-wide flex items-center gap-2" style={{ color: currentMode.color }} {...props} />,
+                                            h3: ({ node, ...props }) => <h3 className="text-sm font-bold text-zinc-200 mb-2 mt-3" {...props} />,
+                                            ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
+                                            ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
                                             li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-                                            strong: ({ node, ...props }) => <strong className="font-bold text-[#00E676]" {...props} />,
-                                            p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed text-zinc-300" {...props} />,
-                                            blockquote: ({ node, ...props }) => <blockquote className="border-l-2 border-[#00E676]/30 pl-3 italic text-zinc-400 my-2" {...props} />,
+                                            strong: ({ node, ...props }) => <strong className="font-bold" style={{ color: currentMode.color }} {...props} />,
+                                            p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-zinc-300" {...props} />,
+                                            blockquote: ({ node, ...props }) => <blockquote className="border-l-2 pl-4 italic text-zinc-400 my-3 bg-zinc-900/50 py-2 pr-2 rounded-r-lg" style={{ borderColor: currentMode.color }} {...props} />,
+                                            code: ({ node, ...props }) => <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-xs font-mono text-zinc-200 border border-zinc-800" {...props} />,
                                         }}
                                     >
                                         {msg.content}
                                     </ReactMarkdown>
                                 </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800/50">
-                                    <span className="text-[9px] text-zinc-500 opacity-50">
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
+                                    <span className="text-[10px] text-zinc-500 font-medium">
                                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                     {msg.role === 'assistant' && (
                                         <button
                                             onClick={() => navigator.clipboard.writeText(msg.content)}
-                                            className="text-[9px] text-zinc-500 hover:text-[#00E676] transition-colors uppercase tracking-wider font-bold"
+                                            className="text-[10px] text-zinc-500 hover:text-white transition-colors uppercase tracking-wider font-bold flex items-center gap-1"
                                         >
                                             Copy
                                         </button>
@@ -236,15 +283,15 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="flex gap-3 max-w-4xl mx-auto w-full"
+                            className="flex gap-4 max-w-4xl mx-auto w-full"
                         >
-                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-[#00E676]/10 border border-[#00E676]/20 flex items-center justify-center">
-                                <Bot className="h-4 w-4 text-[#00E676]" />
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-zinc-900 border flex items-center justify-center shadow-lg" style={{ borderColor: `${currentMode.color}40` }}>
+                                <img src="/logo.svg" alt="AI" className="h-6 w-6 animate-pulse" />
                             </div>
-                            <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-2xl rounded-tl-none flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 bg-[#00E676]/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <span className="w-1.5 h-1.5 bg-[#00E676]/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <span className="w-1.5 h-1.5 bg-[#00E676]/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-3xl rounded-tl-none flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '0ms' }} />
+                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '150ms' }} />
+                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '300ms' }} />
                             </div>
                         </motion.div>
                     )}
@@ -252,30 +299,42 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                 </div>
 
                 {/* Input Area */}
-                <div className="p-3 bg-zinc-950 border-t border-zinc-800">
-                    {/* Quick Prompts */}
-                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-                        {[
-                            "Analyze my last trade",
-                            "Calculate Position Size (Risk 1%)",
-                            "Review my Win Rate vs Risk/Reward",
-                            "Give me a Psychology Checklist",
-                            "Explain Market Structure Shift",
-                            "What is ICT Silver Bullet?"
-                        ].map((prompt) => (
-                            <button
-                                key={prompt}
-                                onClick={() => handleQuickPrompt(prompt)}
-                                className="flex-shrink-0 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-400 hover:text-[#00E676] hover:border-[#00E676]/30 hover:bg-zinc-800 transition-all whitespace-nowrap shadow-sm"
+                <div className="p-4 bg-zinc-950 border-t border-zinc-800 relative z-20">
+                    {/* Quick Prompts (Collapsible) */}
+                    <AnimatePresence>
+                        {showSuggestions && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0, mb: 0 }}
+                                animate={{ opacity: 1, height: 'auto', mb: 16 }}
+                                exit={{ opacity: 0, height: 0, mb: 0 }}
+                                className="overflow-hidden"
                             >
-                                {prompt}
-                            </button>
-                        ))}
-                    </div>
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {[
+                                        "Analyze my last trade",
+                                        "Calculate Position Size (Risk 1%)",
+                                        "Review my Win Rate vs Risk/Reward",
+                                        "Give me a Psychology Checklist",
+                                        "Explain Market Structure Shift",
+                                        "What is ICT Silver Bullet?"
+                                    ].map((prompt) => (
+                                        <button
+                                            key={prompt}
+                                            onClick={() => handleQuickPrompt(prompt)}
+                                            className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all whitespace-nowrap shadow-sm group"
+                                            style={{ borderColor: 'transparent' }}
+                                        >
+                                            <span className="group-hover:text-current transition-colors" style={{ color: undefined }}>{prompt}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <div className="relative max-w-4xl mx-auto w-full">
                         {selectedImage && (
-                            <div className="absolute bottom-full left-0 mb-2 p-2 bg-zinc-900 border border-zinc-800 rounded-xl flex items-start gap-2 shadow-xl">
+                            <div className="absolute bottom-full left-0 mb-3 p-2 bg-zinc-900 border border-zinc-800 rounded-xl flex items-start gap-2 shadow-xl animate-in slide-in-from-bottom-2">
                                 <img src={selectedImage || ""} alt="Preview" className="h-24 w-auto rounded-lg object-cover" />
                                 <button
                                     onClick={() => setSelectedImage(null)}
@@ -294,29 +353,61 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                             onChange={handleImageUpload}
                         />
 
+                        {/* Suggestions Toggle */}
                         <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-zinc-400 hover:text-[#00E676] hover:bg-[#00E676]/10 transition-colors"
-                            title="Upload Chart"
+                            onClick={() => setShowSuggestions(!showSuggestions)}
+                            className={cn(
+                                "absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all duration-300 z-10",
+                                showSuggestions ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-white"
+                            )}
                         >
-                            <Paperclip className="h-5 w-5" />
+                            <div className="relative">
+                                <Sparkles className={cn("h-5 w-5 transition-transform", showSuggestions ? "rotate-180" : "")} style={{ color: showSuggestions ? currentMode.color : undefined }} />
+                                {!showSuggestions && (
+                                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: currentMode.color }}></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: currentMode.color }}></span>
+                                    </span>
+                                )}
+                            </div>
                         </button>
+
+                        <div className="h-6 w-px bg-zinc-800 absolute left-14 top-1/2 -translate-y-1/2 z-10" />
 
                         <input
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask TJP Buddy anything..."
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-5 pl-14 pr-16 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#00E676]/50 focus:ring-1 focus:ring-[#00E676]/50 transition-all shadow-inner"
+                            placeholder={`Ask ${currentMode.label} anything...`}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-5 pl-20 pr-32 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 transition-all shadow-inner font-medium"
+                            style={{
+                                caretColor: currentMode.color,
+                                // @ts-ignore
+                                '--tw-ring-color': `${currentMode.color}50`
+                            }}
                         />
-                        <button
-                            onClick={handleSend}
-                            disabled={(!input.trim() && !selectedImage) || isTyping}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-xl bg-[#00E676] text-black hover:bg-[#00E676]/90 disabled:opacity-50 disabled:hover:bg-[#00E676] transition-all shadow-lg shadow-[#00E676]/20"
-                        >
-                            {isTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                        </button>
+
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
+                                title="Upload Chart"
+                            >
+                                <Paperclip className="h-5 w-5" />
+                            </button>
+                            <button
+                                onClick={handleSend}
+                                disabled={(!input.trim() && !selectedImage) || isTyping}
+                                className="p-2.5 rounded-xl text-black transition-all shadow-lg disabled:opacity-50 disabled:shadow-none transform active:scale-95"
+                                style={{
+                                    backgroundColor: (!input.trim() && !selectedImage) ? '#27272a' : currentMode.color,
+                                    color: (!input.trim() && !selectedImage) ? '#71717a' : '#000000'
+                                }}
+                            >
+                                {isTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

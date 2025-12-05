@@ -150,6 +150,11 @@ export const SmartChart = forwardRef(({
             borderVisible: false,
             wickUpColor: '#089981',
             wickDownColor: '#F23645',
+            priceFormat: {
+                type: 'price',
+                precision: 5,
+                minMove: 0.00001,
+            },
         })
 
         chartRef.current = chart

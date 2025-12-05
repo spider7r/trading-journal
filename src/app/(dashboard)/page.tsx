@@ -14,7 +14,7 @@ import { Trophy, Wallet, BarChart3, TrendingUp, Activity, Calendar, Clock, Scatt
 import { AccountOverview } from '@/components/dashboard/AccountOverview'
 import { AchievementManager } from '@/components/dashboard/AchievementManager'
 import { EmptyDashboard } from '@/components/dashboard/EmptyDashboard'
-import { generateDemoTrades } from '@/utils/demo-data'
+
 
 export default async function DashboardPage({
     searchParams,
@@ -88,11 +88,9 @@ export default async function DashboardPage({
         .order('open_time', { ascending: false })
         .limit(500)
 
-    const isDemoMode = !realTrades || realTrades.length === 0
-    const trades = isDemoMode ? generateDemoTrades(50) : realTrades
+    const trades = realTrades || []
 
     console.log('Dashboard Debug:', {
-        isDemoMode,
         tradesLength: trades?.length,
         initialBalance: account?.initial_balance,
         firstTrade: trades?.[0]
@@ -176,11 +174,6 @@ export default async function DashboardPage({
                     <h2 className="text-3xl font-black tracking-tight text-white uppercase italic">Dashboard</h2>
                     <div className="flex items-center gap-2 mt-1">
                         <p className="text-zinc-400">Overview for <span className="text-emerald-400 font-bold">{account?.name}</span></p>
-                        {isDemoMode && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 uppercase tracking-wider">
-                                Demo Mode
-                            </span>
-                        )}
                     </div>
                 </div>
                 <TradeDialog accountId={accountId} />

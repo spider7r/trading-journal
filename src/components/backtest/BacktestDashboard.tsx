@@ -1,304 +1,244 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line
-} from 'recharts'
-import {
-    Clock, BarChart2, Info, Award,
-    Plus, TrendingUp, History, Trash2, Play
-} from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { BarChart2, Clock, Info, Award, Play, Plus, Trash2, History } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { CreateSessionDialog } from './CreateSessionDialog'
+import { getRecentBacktestSessions, deleteBacktestSession, getBacktestStats } from '@/app/(dashboard)/backtest/actions'
 import { useRouter } from 'next/navigation'
-import { getRecentBacktestSessions, deleteBacktestSession } from '@/app/(dashboard)/backtest/actions'
 import { toast } from 'sonner'
 
-// Mock Data
-const winRateData = [
-    { name: 'Jan', rate: 45 },
-    { name: 'Feb', rate: 52 },
-    { name: 'Mar', rate: 38 },
-    { name: 'Apr', rate: 65 },
-    { name: 'May', rate: 48 },
-    { name: 'Jun', rate: 72 },
-    { name: 'Jul', rate: 60 },
-]
-
-const timeInvestedData = [
-    { name: 'Mon', hours: 2 },
-    { name: 'Tue', hours: 1.5 },
-    { name: 'Wed', hours: 3 },
-    { name: 'Thu', hours: 2.5 },
-    { name: 'Fri', hours: 4 },
-    { name: 'Sat', hours: 1 },
-    { name: 'Sun', hours: 0.5 },
-]
-
-const tradesBySymbol = [
-    { symbol: 'EURUSD', count: 145, winRate: 55 },
-    { symbol: 'GBPUSD', count: 89, winRate: 48 },
-    { symbol: 'XAUUSD', count: 62, winRate: 60 },
-    { symbol: 'BTCUSD', count: 34, winRate: 42 },
-]
-
-import { CreateSessionDialog } from './CreateSessionDialog'
-import { useState, useEffect } from 'react'
-
-export function BacktestDashboard() {
-    const router = useRouter()
+export default function BacktestDashboard() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [recentSessions, setRecentSessions] = useState<any[]>([])
+    const [stats, setStats] = useState<any>({
+        totalSessions: 0,
+        totalTrades: 0,
+        winRate: 0,
+        totalTimeInvested: 0,
+        winRateTrend: [],
+        tradesBySymbol: []
+    })
+    const router = useRouter()
 
     useEffect(() => {
-        loadSessions()
+        loadData()
     }, [])
 
-    const loadSessions = async () => {
-        const sessions = await getRecentBacktestSessions()
+    const loadData = async () => {
+        const [sessions, statistics] = await Promise.all([
+            getRecentBacktestSessions(),
+            getBacktestStats()
+        ])
         setRecentSessions(sessions)
+        if (statistics) {
+            setStats(statistics)
+        }
     }
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        try {
+        if (confirm('Are you sure you want to delete this session?')) {
             await deleteBacktestSession(id)
-            toast.success('Session deleted')
-            loadSessions()
-        } catch (error) {
-            toast.error('Failed to delete session')
+            loadData()
         }
     }
 
+    const { totalSessions, totalTrades, winRate, totalTimeInvested, winRateTrend, tradesBySymbol } = stats
+
     return (
-        <div className="p-6 h-full overflow-auto bg-[#050505] text-white font-sans">
+        <div className="p-8 h-full overflow-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 text-white font-sans">
             <CreateSessionDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column */}
-                <div className="flex flex-col gap-6">
-                    {/* Top Stats Row 1 */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <Card className="bg-[#0A0A0A] border-white/5">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-[#94A3B8]">Time Invested</CardTitle>
-                                <BarChart2 className="w-4 h-4 text-[#94A3B8]" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-white">48.5 hrs</div>
-                                <p className="text-xs text-[#94A3B8] mt-1">+12% from last month</p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-[#0A0A0A] border-white/5">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-[#94A3B8]">Historical Time</CardTitle>
-                                <Clock className="w-4 h-4 text-[#94A3B8]" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-white">3.2 yrs</div>
-                                <p className="text-xs text-[#94A3B8] mt-1">Replayed market data</p>
-                            </CardContent>
-                        </Card>
-                    </div>
 
-                    {/* Top Stats Row 2 */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <Card className="bg-[#0A0A0A] border-white/5">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-[#94A3B8]">Trades Taken</CardTitle>
-                                <Info className="w-4 h-4 text-[#94A3B8]" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-white">1,248</div>
-                                <p className="text-xs text-[#94A3B8] mt-1">Total executions</p>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-[#0A0A0A] border-white/5">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-[#94A3B8]">Overall Win Rate</CardTitle>
-                                <Award className="w-4 h-4 text-[#94A3B8]" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-[#00E676]">52.4%</div>
-                                <p className="text-xs text-[#94A3B8] mt-1">Average across all sessions</p>
-                            </CardContent>
-                        </Card>
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-black tracking-tight text-white">Backtest Lab</h1>
+                        <p className="text-zinc-400 mt-1">Replay history. Refine your edge. Master the markets.</p>
                     </div>
-
-                    {/* Win Rate Chart */}
-                    <Card className="bg-[#0A0A0A] border-white/5 flex-1 min-h-[300px]">
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium text-white">Win Rate Trend</CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[250px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={winRateData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="#94A3B8"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                    />
-                                    <YAxis
-                                        stroke="#94A3B8"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(value) => `${value}%`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#0A0A0A', borderColor: 'rgba(255,255,255,0.05)', color: '#FFFFFF' }}
-                                        itemStyle={{ color: '#FFFFFF' }}
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                    />
-                                    <Bar dataKey="rate" fill="#00E676" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
+                    {recentSessions.length > 0 && (
+                        <Button
+                            onClick={() => setIsCreateOpen(true)}
+                            className="bg-[#00E676] hover:bg-[#00C853] text-black font-bold shadow-lg shadow-[#00E676]/20 transition-all hover:scale-105"
+                        >
+                            <Plus className="w-4 h-4 mr-2" />
+                            New Session
+                        </Button>
+                    )}
                 </div>
 
-                {/* Right Column */}
-                <div className="flex flex-col gap-6">
-                    {/* Recent Sessions */}
-                    <Card className="bg-[#0A0A0A] border-white/5">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-base font-medium text-white flex items-center gap-2">
-                                <History className="w-4 h-4 text-[#00E676]" />
-                                Recent Sessions
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {recentSessions.length === 0 ? (
-                                <div className="text-center py-8 text-[#94A3B8] text-sm">
-                                    No recent sessions found. Start a new one!
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {recentSessions.map((session) => (
-                                        <div
-                                            key={session.id}
-                                            className="flex items-center justify-between p-3 rounded-lg bg-[#050505] border border-white/5 hover:border-[#00E676]/30 transition-colors cursor-pointer group"
-                                            onClick={() => router.push(`/backtest/session/${session.id}`)}
-                                        >
-                                            <div>
-                                                <div className="font-medium text-white text-sm">{session.name}</div>
-                                                <div className="text-xs text-[#94A3B8] flex items-center gap-2">
-                                                    <span>{session.pair}</span>
-                                                    <span>•</span>
-                                                    <span>${session.current_balance?.toLocaleString()}</span>
+                {recentSessions.length === 0 ? (
+                    /* Hero Section for Empty State */
+                    <div className="flex flex-col items-center justify-center py-32 text-center space-y-8 bg-zinc-900/30 backdrop-blur-xl border border-white/5 rounded-3xl">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-[#00E676] blur-[100px] opacity-20 rounded-full" />
+                            <div className="relative bg-zinc-900 p-6 rounded-full border border-zinc-800 shadow-2xl">
+                                <History className="w-16 h-16 text-[#00E676]" />
+                            </div>
+                        </div>
+                        <div className="max-w-lg space-y-4">
+                            <h2 className="text-4xl font-black text-white tracking-tight">Start Your Journey</h2>
+                            <p className="text-zinc-400 text-lg">
+                                You haven't created any backtest sessions yet. Create your first session to replay market data and test your strategies in a risk-free environment.
+                            </p>
+                        </div>
+                        <Button
+                            onClick={() => setIsCreateOpen(true)}
+                            size="lg"
+                            className="h-14 px-8 text-lg bg-[#00E676] hover:bg-[#00C853] text-black font-bold shadow-xl shadow-[#00E676]/20 transition-all hover:scale-105"
+                        >
+                            <Play className="w-5 h-5 mr-2 fill-current" />
+                            Start Backtesting Now
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <Card className="bg-zinc-900/50 backdrop-blur-xl border-white/5 hover:border-white/10 transition-colors">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-zinc-400">Total Sessions</CardTitle>
+                                    <History className="w-4 h-4 text-zinc-500" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-white">{totalSessions}</div>
+                                    <p className="text-xs text-zinc-500 mt-1">Active simulations</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-zinc-900/50 backdrop-blur-xl border-white/5 hover:border-white/10 transition-colors">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-zinc-400">Total Trades</CardTitle>
+                                    <Info className="w-4 h-4 text-zinc-500" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-white">{totalTrades}</div>
+                                    <p className="text-xs text-zinc-500 mt-1">Across all sessions</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-zinc-900/50 backdrop-blur-xl border-white/5 hover:border-white/10 transition-colors">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-zinc-400">Win Rate</CardTitle>
+                                    <Award className="w-4 h-4 text-[#00E676]" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-[#00E676]">{winRate}%</div>
+                                    <p className="text-xs text-zinc-500 mt-1">Average performance</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-zinc-900/50 backdrop-blur-xl border-white/5 hover:border-white/10 transition-colors">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-zinc-400">Time Invested</CardTitle>
+                                    <Clock className="w-4 h-4 text-zinc-500" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-white">{totalTimeInvested}h</div>
+                                    <p className="text-xs text-zinc-500 mt-1">Practice time</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Charts Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <Card className="lg:col-span-2 bg-zinc-900/50 backdrop-blur-xl border-white/5">
+                                <CardHeader>
+                                    <CardTitle className="text-base font-bold text-white">Performance Trend</CardTitle>
+                                </CardHeader>
+                                <CardContent className="h-[300px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={winRateTrend}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                            <XAxis dataKey="name" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
+                                            <YAxis stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#18181b', borderColor: 'rgba(255,255,255,0.1)', color: '#FFFFFF' }}
+                                                itemStyle={{ color: '#FFFFFF' }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            />
+                                            <Bar dataKey="rate" fill="#00E676" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-zinc-900/50 backdrop-blur-xl border-white/5">
+                                <CardHeader>
+                                    <CardTitle className="text-base font-bold text-white">Asset Distribution</CardTitle>
+                                </CardHeader>
+                                <CardContent className="h-[300px]">
+                                    <div className="space-y-4">
+                                        {tradesBySymbol.map((item: any) => (
+                                            <div key={item.symbol} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-xs font-bold text-zinc-500">
+                                                        {item.symbol.substring(0, 2)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-white text-sm">{item.symbol}</div>
+                                                        <div className="text-xs text-zinc-500">{item.count} trades</div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-[#00E676] text-sm">{item.winRate}%</div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-[#00E676] hover:text-[#00C853] hover:bg-[#00E676]/10"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        router.push(`/backtest/session/${session.id}`)
-                                                    }}
-                                                >
-                                                    <Play className="w-4 h-4 fill-current" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-[#ef4444] hover:text-[#dc2626] hover:bg-[#ef4444]/10"
-                                                    onClick={(e) => handleDelete(session.id, e)}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                    {/* Time Invested Chart */}
-                    <Card className="bg-[#0A0A0A] border-white/5 h-[300px]">
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium text-white">Time Invested (This Week)</CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[240px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={timeInvestedData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="#94A3B8"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                    />
-                                    <YAxis
-                                        stroke="#94A3B8"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(value) => `${value}h`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#0A0A0A', borderColor: 'rgba(255,255,255,0.05)', color: '#FFFFFF' }}
-                                        itemStyle={{ color: '#FFFFFF' }}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="hours"
-                                        stroke="#00E676"
-                                        strokeWidth={2}
-                                        dot={{ fill: '#00E676', r: 4 }}
-                                        activeDot={{ r: 6 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-
-                    {/* Trades by Symbol */}
-                    <Card className="bg-[#0A0A0A] border-white/5 flex-1 flex flex-col">
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium text-white">Trades by Symbol</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-1">
-                            <div className="space-y-4">
-                                {tradesBySymbol.map((item) => (
-                                    <div key={item.symbol} className="flex items-center justify-between p-3 rounded-lg bg-[#050505] border border-white/5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-[#0A0A0A] border border-white/5 flex items-center justify-center text-xs font-bold text-[#94A3B8]">
-                                                {item.symbol.substring(0, 2)}
+                        {/* Recent Sessions - Full Width */}
+                        <div className="space-y-4">
+                            <h2 className="text-xl font-bold text-white">Recent Sessions</h2>
+                            <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/5 rounded-2xl overflow-hidden">
+                                {recentSessions.map((session, index) => (
+                                    <div
+                                        key={session.id}
+                                        className={`group flex items-center justify-between p-6 hover:bg-white/5 transition-colors cursor-pointer ${index !== recentSessions.length - 1 ? 'border-b border-white/5' : ''}`}
+                                        onClick={() => router.push(`/backtest/session/${session.id}`)}
+                                    >
+                                        <div className="flex items-center gap-6">
+                                            <div className="w-12 h-12 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center group-hover:border-[#00E676]/50 transition-colors">
+                                                <Play className="w-5 h-5 text-zinc-500 group-hover:text-[#00E676] fill-current transition-colors" />
                                             </div>
                                             <div>
-                                                <div className="font-medium text-white">{item.symbol}</div>
-                                                <div className="text-xs text-[#94A3B8]">{item.count} trades</div>
+                                                <h3 className="text-lg font-bold text-white group-hover:text-[#00E676] transition-colors">{session.name}</h3>
+                                                <div className="flex items-center gap-4 text-sm text-zinc-500 mt-1">
+                                                    <span className="flex items-center gap-1"><BarChart2 className="w-3 h-3" /> {session.pair}</span>
+                                                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(session.created_at).toLocaleDateString()}</span>
+                                                    <span className="px-2 py-0.5 rounded bg-white/5 text-zinc-400 text-xs font-bold">{session.session_type}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="font-medium text-white">{item.winRate}% WR</div>
-                                            <div className="w-24 h-1.5 bg-[#0A0A0A] rounded-full mt-1 overflow-hidden">
-                                                <div
-                                                    className="h-full bg-[#00E676] rounded-full"
-                                                    style={{ width: `${item.winRate}%` }}
-                                                />
+
+                                        <div className="flex items-center gap-8">
+                                            <div className="text-right hidden md:block">
+                                                <div className="text-sm text-zinc-500 uppercase font-bold tracking-wider">Balance</div>
+                                                <div className="text-lg font-bold text-white">${session.current_balance?.toLocaleString()}</div>
                                             </div>
+                                            <div className="text-right hidden md:block">
+                                                <div className="text-sm text-zinc-500 uppercase font-bold tracking-wider">P&L</div>
+                                                <div className={`text-lg font-bold ${(session.current_balance - session.initial_balance) >= 0 ? 'text-[#00E676]' : 'text-red-500'}`}>
+                                                    {((session.current_balance - session.initial_balance) / session.initial_balance * 100).toFixed(2)}%
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-zinc-500 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                onClick={(e) => handleDelete(session.id, e)}
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </CardContent>
-                        <div className="p-6 pt-0 mt-auto">
-                            <Button
-                                className="w-full bg-[#00E676] hover:bg-[#00C853] text-black h-12 text-lg font-bold shadow-lg shadow-[#00E676]/20"
-                                onClick={() => setIsCreateOpen(true)}
-                            >
-                                Start New Session
-                            </Button>
                         </div>
-                    </Card>
-                </div>
+                    </>
+                )}
             </div>
         </div>
     )
