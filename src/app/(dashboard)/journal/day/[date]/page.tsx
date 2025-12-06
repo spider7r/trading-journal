@@ -91,7 +91,7 @@ export default async function JournalDayPage({
                                     {trades.map((trade: any) => (
                                         <tr key={trade.id} className="hover:bg-zinc-800/30 transition-colors">
                                             <td className="px-6 py-4 text-zinc-400">
-                                                {new Date(trade.entry_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {new Date(trade.open_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </td>
                                             <td className="px-6 py-4 font-bold text-white">{trade.pair}</td>
                                             <td className="px-6 py-4">

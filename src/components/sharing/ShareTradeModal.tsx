@@ -29,7 +29,7 @@ export function ShareTradeModal({ trade }: ShareTradeModalProps) {
             const image = canvas.toDataURL('image/png')
             const link = document.createElement('a')
             link.href = image
-            link.download = `trade-${trade.pair}-${trade.entry_date}.png`
+            link.download = `trade-${trade.pair}-${trade.open_time}.png`
             link.click()
         } catch (error) {
             console.error('Error generating image:', error)
@@ -111,7 +111,7 @@ export function ShareTradeModal({ trade }: ShareTradeModalProps) {
                                 </div>
                             </div>
                             <p className="text-xs text-zinc-500">
-                                {new Date(trade.entry_date).toLocaleDateString()}
+                                {new Date(trade.open_time).toLocaleDateString()}
                             </p>
                         </div>
                     </div>

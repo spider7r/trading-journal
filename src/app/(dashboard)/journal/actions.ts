@@ -58,9 +58,9 @@ export async function getJournalEntry(date: string) {
         .from('trades')
         .select('*')
         .eq('user_id', user.id)
-        .gte('entry_date', `${date}T00:00:00`)
-        .lte('entry_date', `${date}T23:59:59`)
-        .order('entry_date', { ascending: false })
+        .gte('open_time', `${date}T00:00:00`)
+        .lte('open_time', `${date}T23:59:59`)
+        .order('open_time', { ascending: false })
 
     return { success: true, data: { entry, trades: trades || [] } }
 }

@@ -15,7 +15,7 @@ export async function getTrades(mode: 'Live' | 'Backtest' | 'Paper' = 'Live') {
         .select('*')
         .eq('user_id', user.id)
         .eq('mode', mode)
-        .order('entry_date', { ascending: false })
+        .order('open_time', { ascending: false })
 
     if (error) {
         console.error('Error fetching trades:', error)
@@ -112,7 +112,7 @@ export async function createTrade(formData: FormData) {
         status,
         closing_reason: closingReason || null,
         mode,
-        entry_date: new Date().toISOString(), // Use entry_date as open_time
+        open_time: new Date().toISOString(),
     })
 
     if (error) {
@@ -152,7 +152,7 @@ export async function closeTrade(formData: FormData) {
             exit_price: exitPrice,
             pnl: pnl,
             closing_reason: closingReason,
-            exit_date: new Date().toISOString()
+            close_time: new Date().toISOString()
         })
         .eq('id', tradeId)
         .eq('user_id', user.id)
@@ -185,7 +185,7 @@ async function checkAccountStatus(supabase: any, accountId: string) {
         .from('trades')
         .select('*')
         .eq('account_id', accountId)
-        .order('entry_date', { ascending: true })
+        .order('open_time', { ascending: true })
 
     const initialBalance = Number(account.initial_balance) || 0
     const currentBalance = Number(account.current_balance)
@@ -219,7 +219,7 @@ async function checkAccountStatus(supabase: any, accountId: string) {
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
         // Filter trades for today
-        const dailyTrades = trades?.filter((t: any) => new Date(t.entry_date) >= startOfToday) || []
+        const dailyTrades = trades?.filter((t: any) => new Date(t.open_time) >= startOfToday) || []
         const dailyPnL = dailyTrades.reduce((sum: number, t: any) => sum + (Number(t.pnl) || 0), 0)
 
         const dailyDrawdownType = account.daily_drawdown_type || 'STATIC'

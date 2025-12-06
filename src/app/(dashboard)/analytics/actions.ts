@@ -14,7 +14,7 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
         .select('*')
         .eq('user_id', user.id)
         .eq('mode', mode)
-        .order('entry_date', { ascending: true })
+        .order('open_time', { ascending: true })
 
     if (error) {
         console.error('Error fetching analytics data:', error)
@@ -26,7 +26,7 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
     const equityCurve = trades.map(trade => {
         cumulativePnl += trade.pnl || 0
         return {
-            date: new Date(trade.entry_date).toLocaleDateString(),
+            date: new Date(trade.open_time).toLocaleDateString(),
             pnl: cumulativePnl,
             tradePnl: trade.pnl
         }
@@ -80,7 +80,7 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
         }
 
         // Day of Week
-        const date = new Date(trade.entry_date)
+        const date = new Date(trade.open_time)
         const dayIndex = date.getDay()
         dayStats[dayIndex].total++
         dayStats[dayIndex].pnl += pnl

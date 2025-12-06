@@ -32,7 +32,7 @@ export default function TradesPage() {
                     .select('*')
                     .eq('user_id', user.id)
                     .eq('mode', mode)
-                    .order('entry_date', { ascending: false })
+                    .order('open_time', { ascending: false })
 
                 if (accountId) {
                     query = query.eq('account_id', accountId)
@@ -81,8 +81,8 @@ export default function TradesPage() {
                                 key={m}
                                 onClick={() => setMode(m as any)}
                                 className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${mode === m
-                                        ? 'bg-emerald-500 text-white shadow-sm'
-                                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
                                     }`}
                             >
                                 {m}

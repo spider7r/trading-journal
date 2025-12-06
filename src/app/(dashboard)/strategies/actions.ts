@@ -126,8 +126,8 @@ export async function getStrategyById(id: string) {
                 exit_price,
                 pnl,
                 outcome,
-                entry_date,
-                exit_date,
+                open_time,
+                close_time,
                 notes,
                 session
             ),
@@ -162,11 +162,11 @@ export async function getStrategyById(id: string) {
     // Equity Curve
     let cumulativePnl = 0
     const equityCurve = trades
-        .sort((a: any, b: any) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime())
+        .sort((a: any, b: any) => new Date(a.open_time).getTime() - new Date(b.open_time).getTime())
         .map((trade: any) => {
             cumulativePnl += trade.pnl || 0
             return {
-                date: new Date(trade.entry_date).toLocaleDateString(),
+                date: new Date(trade.open_time).toLocaleDateString(),
                 pnl: cumulativePnl,
                 tradePnl: trade.pnl
             }
