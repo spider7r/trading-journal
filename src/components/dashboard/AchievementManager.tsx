@@ -31,7 +31,7 @@ export function AchievementManager({ account, currentBalance, dailyPnL, achievem
                 backgroundColor: '#09090b', // zinc-950
                 logging: false,
                 useCORS: true // Ensure external images (if any) are loaded
-            })
+            } as any)
 
             const image = canvas.toDataURL('image/png')
             const link = document.createElement('a')

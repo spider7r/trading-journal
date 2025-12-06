@@ -24,7 +24,7 @@ export function ShareTradeModal({ trade }: ShareTradeModalProps) {
             const canvas = await html2canvas(cardRef.current, {
                 backgroundColor: '#09090b', // zinc-950
                 scale: 2, // Higher quality
-            })
+            } as any)
 
             const image = canvas.toDataURL('image/png')
             const link = document.createElement('a')
