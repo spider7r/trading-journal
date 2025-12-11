@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const GROQ_TEXT_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_VISION_MODEL = 'llama-3.2-11b-vision-preview'; // Decommissioned? Logic handles fallback.
 const CEREBRAS_MODEL = 'llama3.1-70b';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'models/gemini-2.5-flash';
 
 // --- KEY MANAGEMENT ---
 function getKeys(envVar: string): string[] {
