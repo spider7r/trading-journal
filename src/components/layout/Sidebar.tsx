@@ -42,7 +42,7 @@ export function Sidebar() {
             <div className="flex h-20 items-center gap-x-3 px-6 border-b border-zinc-800/50">
                 <div className="relative h-10 w-40 overflow-hidden">
                     <Image
-                        src="/full-logo.png"
+                        src="/logo.png"
                         alt="The Tradal"
                         fill
                         className="object-contain object-left"

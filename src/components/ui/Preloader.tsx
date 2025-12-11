@@ -39,12 +39,7 @@ export function Preloader() {
                                 priority
                             />
                         </div>
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: "100%" }}
-                            transition={{ delay: 0.5, duration: 1 }}
-                            className="h-1 w-32 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-                        />
+
                     </motion.div>
                 </motion.div>
             )}
