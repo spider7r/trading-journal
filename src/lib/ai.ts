@@ -47,11 +47,14 @@ class GeminiProvider implements AIProvider {
     if (this.keys.length === 0) throw new Error("No Gemini Keys Configured");
 
     // Models to try in order of priority
-    // 1. gemini-2.5-flash (Experimental, Faster, Smarter)
-    // 2. gemini-1.5-flash (Stable, Higher Quota)
+    // 1. gemini-2.5-flash (Experimental)
+    // 2. gemini-1.5-flash-002 (New Stable)
+    // 3. gemini-1.5-flash-001 (Old Stable)
     const MODELS_TO_TRY = [
-      GEMINI_MODEL,              // Experimental 2.5
-      'models/gemini-1.5-flash'  // Stable Fallback
+      GEMINI_MODEL,
+      'models/gemini-1.5-flash-002',
+      'models/gemini-1.5-flash-001',
+      'models/gemini-1.5-pro'
     ];
 
     let lastError: any = null;
