@@ -544,6 +544,104 @@ class TogetherProvider implements AIProvider {
   }
 }
 
+// --- NVIDIA NIM IMPLEMENTATION (Llama 405B - High Speed) ---
+class NvidiaProvider implements AIProvider {
+  name = 'NVIDIA NIM';
+  private client: OpenAI | null = null;
+
+  constructor() {
+    const token = process.env.NVIDIA_API_KEY;
+    if (token) {
+      this.client = new OpenAI({
+        baseURL: "https://integrate.api.nvidia.com/v1",
+        apiKey: token
+      });
+    }
+  }
+
+  async generate(prompt: string, systemPrompt: string, imageBase64?: string): Promise<string> {
+    if (!this.client) throw new Error("No NVIDIA Token Configured");
+
+    // NVIDIA NIM is primarily text for Llama models currently via this endpoint standard.
+    // They do have vision models (NVIDIA VILA) but keeping it simple with Llama 405B.
+    const effectivePrompt = imageBase64
+      ? prompt + "\n\n[System Note: Image context unavailable on NVIDIA. Analyze text data only.]"
+      : prompt;
+
+    try {
+      const completion = await this.client.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: effectivePrompt }
+        ],
+        // Primary model: Llama 3.1 405B (The Big One)
+        model: "meta/llama-3.1-405b-instruct",
+        temperature: 0.7,
+        max_tokens: 4096
+      });
+      return completion.choices[0]?.message?.content || "";
+    } catch (err: any) {
+      console.warn(`[NVIDIA] Failed:`, err.message);
+      throw err;
+    }
+  }
+}
+
+// --- MISTRAL AI IMPLEMENTATION ---
+class MistralProvider implements AIProvider {
+  name = 'Mistral AI';
+  private client: OpenAI | null = null;
+
+  constructor() {
+    const token = process.env.MISTRAL_API_KEY;
+    if (token) {
+      this.client = new OpenAI({
+        baseURL: "https://api.mistral.ai/v1",
+        apiKey: token
+      });
+    }
+  }
+
+  async generate(prompt: string, systemPrompt: string, imageBase64?: string): Promise<string> {
+    if (!this.client) throw new Error("No Mistral Token Configured");
+
+    // Mistral Large is very smart (GPT-4 Class).
+    // Pixtral 12B is their vision model, but we stick to flagship text for now or Pixtral if specified.
+
+    let model = "mistral-large-latest";
+    let messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt }
+    ];
+
+    if (imageBase64) {
+      // Switch to Pixtral (Vision)
+      model = "pixtral-12b-2409";
+      messages[1].content = [
+        { type: "text", text: prompt },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
+          }
+        }
+      ];
+    }
+
+    try {
+      const completion = await this.client.chat.completions.create({
+        messages: messages,
+        model: model,
+        temperature: 0.7,
+      });
+      return completion.choices[0]?.message?.content || "";
+    } catch (err: any) {
+      console.warn(`[Mistral] Failed:`, err.message);
+      throw err;
+    }
+  }
+}
+
 // --- THE MANAGER (THE BRAIN) ---
 class AIManager {
   private providers: AIProvider[] = [];
@@ -552,16 +650,20 @@ class AIManager {
     // Priority Chain:
     // 1. GitHub (GPT-4o) - Top Tier Vision
     // 2. Together AI (Llama Vision) - Top Speed Vision
-    // 3. SambaNova (Llama 405B) - Top Tier Reasoning
-    // 4. DeepSeek (V3) - Top Tier Reasoning
-    // 5. Hugging Face (Qwen 72B) - Strong Fallback
-    // 6. Gemini (Flash 2.0) - High Speed Vision
-    // 7. Groq (Llama 3.2) - High Speed Vision Backup
-    // 8. Cerebras (Llama 70b) - Instant Fallback
+    // 3. NVIDIA (Llama 405B) - Top Reliability 405B
+    // 4. SambaNova (Llama 405B) - Top Tier Reasoning
+    // 5. Mistral (Large/Pixtral) - High IQ + Vision
+    // 6. DeepSeek (V3) - Top Tier Reasoning
+    // 7. Hugging Face (Qwen 72B) - Strong Fallback
+    // 8. Gemini (Flash 2.0) - High Speed Vision
+    // 9. Groq (Llama 3.2) - High Speed Vision Backup
+    // 10. Cerebras (Llama 70b) - Instant Fallback
 
     this.providers.push(new GithubProvider());
     this.providers.push(new TogetherProvider());
+    this.providers.push(new NvidiaProvider());
     this.providers.push(new SambaNovaProvider());
+    this.providers.push(new MistralProvider());
     this.providers.push(new DeepSeekProvider());
     this.providers.push(new HuggingFaceProvider());
     this.providers.push(new GeminiProvider());

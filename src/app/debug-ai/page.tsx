@@ -97,6 +97,17 @@ export default async function DebugAIPage() {
                 <div>
                     <strong className="text-white">GitHub Token:</strong> {process.env.GITHUB_MODELS_TOKEN ? '✅ Present' : '❌ Missing'}
                 </div>
+                <div className="text-xs text-gray-500 mt-2">
+                    Global Cluster Status:
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>SambaNova: {process.env.SAMBANOVA_API_KEY ? '✅' : '❌'}</div>
+                    <div>DeepSeek: {process.env.DEEPSEEK_API_KEY ? '✅' : '❌'}</div>
+                    <div>HuggingFace: {process.env.HUGGINGFACE_API_KEY ? '✅' : '❌'}</div>
+                    <div>Together: {process.env.TOGETHER_API_KEY ? '✅' : '❌'}</div>
+                    <div>NVIDIA: {process.env.NVIDIA_API_KEY ? '✅' : '❌'}</div>
+                    <div>Mistral: {process.env.MISTRAL_API_KEY ? '✅' : '❌'}</div>
+                </div>
 
                 <div className="border-t border-green-900 pt-4">
                     <strong className="text-white">API Connectivity Test (First 5 Keys):</strong> <br />
