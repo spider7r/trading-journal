@@ -74,7 +74,7 @@ export default async function DebugAIPage() {
             </div>
 
             <div className="mt-8 text-sm text-gray-500">
-        If "Parsed Keys" is 0, Vercel does not have your keys. Go to Settings > Env Variables.<br />
+                If "Parsed Keys" is 0, Vercel does not have your keys. Go to Settings &gt; Env Variables.<br />
                 If "Model Error" is 404, the model name is wrong.<br />
                 If "Model Error" is 429, the key is rate limited.
             </div>
