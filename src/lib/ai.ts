@@ -48,58 +48,8 @@ class GeminiProvider implements AIProvider {
 
     // Try keys in Round-Robin fashion
     // We try at most 'this.keys.length' times.
-    let attempts = 0;
     let lastError: any = null;
 
-    // Start from current index
-    let iterator = this.currentIndex;
-
-    while (attempts < this.keys.length) {
-      const key = this.keys[iterator];
-      // Move index for next time (Round Robin globally)
-      this.currentIndex = (this.currentIndex + 1) % this.keys.length;
-
-      try {
-        console.log(`[Gemini] Attempt ${attempts + 1}/${this.keys.length} using key ...${key.slice(-5)}`);
-        const genAI = new GoogleGenerativeAI(key);
-        // Ensure model has 'models/' prefix if using 2.5-flash
-        const modelId = GEMINI_MODEL.startsWith('models/') || GEMINI_MODEL.includes('1.5') ? GEMINI_MODEL : `models/${GEMINI_MODEL}`;
-
-        const model = genAI.getGenerativeModel({ model: modelId });
-
-        let parts: any[] = [{ text: `${systemPrompt}\n\nUSER PROMPT:\n${prompt}` }];
-
-        if (imageBase64) {
-          const base64Clean = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-          parts.push({
-            inlineData: {
-              data: base64Clean,
-              mimeType: "image/jpeg"
-            }
-          });
-        }
-
-        const result = await model.generateContent(parts);
-        const response = await result.response;
-        return response.text();
-
-      } catch (err: any) {
-        console.error(`[Gemini Error] Key ...${key.slice(-5)} failed. Status: ${err.response?.status || 'Unknown'} | Message: ${err.message}`);
-        lastError = err;
-
-        // If 429 (Rate Limit) or 503 (Overloaded), try next key.
-        attempts++;
-        iterator = (iterator + 1) % this.keys.length; // Next key
-      }
-    }
-
-    throw lastError || new Error("All Gemini Keys Exhausted");
-  }
-}
-
-// --- GROQ IMPLEMENTATION ---
-class GroqProvider implements AIProvider {
-  name = 'Groq';
   private keys: string[];
   private currentIndex = 0;
 
