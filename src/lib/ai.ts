@@ -36,6 +36,7 @@ class GeminiProvider implements AIProvider {
     } else if (single) {
       this.keys = [single];
     }
+    console.log(`[GeminiProvider] Loaded ${this.keys.length} keys. (Env: ${multi.length > 0 ? 'GEMINI_API_KEYS' : 'GEMINI_API_KEY'})`);
   }
 
   private getClient(keyIndex: number): GoogleGenerativeAI {
@@ -59,8 +60,12 @@ class GeminiProvider implements AIProvider {
       this.currentIndex = (this.currentIndex + 1) % this.keys.length;
 
       try {
+        console.log(`[Gemini] Attempt ${attempts + 1}/${this.keys.length} using key ...${key.slice(-5)}`);
         const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+        // Ensure model has 'models/' prefix if using 2.5-flash
+        const modelId = GEMINI_MODEL.startsWith('models/') || GEMINI_MODEL.includes('1.5') ? GEMINI_MODEL : `models/${GEMINI_MODEL}`;
+
+        const model = genAI.getGenerativeModel({ model: modelId });
 
         let parts: any[] = [{ text: `${systemPrompt}\n\nUSER PROMPT:\n${prompt}` }];
 
@@ -79,11 +84,10 @@ class GeminiProvider implements AIProvider {
         return response.text();
 
       } catch (err: any) {
-        console.warn(`Gemini Key ending in ...${key.slice(-5)} Failed:`, err.message);
+        console.error(`[Gemini Error] Key ...${key.slice(-5)} failed. Status: ${err.response?.status || 'Unknown'} | Message: ${err.message}`);
         lastError = err;
 
         // If 429 (Rate Limit) or 503 (Overloaded), try next key.
-        // If it's a 400 (Bad Request), it might be the image/prompt, so retrying might not help, but for safety we try one more just in case.
         attempts++;
         iterator = (iterator + 1) % this.keys.length; // Next key
       }
