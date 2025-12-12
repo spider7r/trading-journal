@@ -49,13 +49,16 @@ class GeminiProvider implements AIProvider {
     // Models to try in order of priority
     // Models to try in order of priority
     // 1. gemini-2.5-flash (Experimental - High Rate Limits)
-    // 2. gemini-1.5-flash-002 (Latest Stable - High Quota)
-    // 3. gemini-1.5-flash-001 (Legacy Stable - High Quota)
+    // 2. gemini-1.5-flash-002 (Latest Stable)
+    // 3. gemini-1.5-pro (Higher Intelligence, Lower Speed)
+    // 4. gemini-1.5-flash-8b (Ultra Fast)
     const MODELS_TO_TRY = [
       GEMINI_MODEL,
       'models/gemini-1.5-flash-002',
-      'models/gemini-1.5-flash-001',
-      'models/gemini-1.5-pro'
+      'models/gemini-1.5-pro',
+      'models/gemini-1.5-flash-8b',
+      'models/gemini-1.5-flash',
+      'models/gemini-pro'
     ];
 
     let lastError: any = null;
