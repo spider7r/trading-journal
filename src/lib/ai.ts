@@ -53,7 +53,9 @@ class GeminiProvider implements AIProvider {
     // 3. gemini-1.5-pro (Higher Intelligence, Lower Speed)
     // 4. gemini-1.5-flash-8b (Ultra Fast)
     const MODELS_TO_TRY = [
-      GEMINI_MODEL,
+      GEMINI_MODEL, // 2.5-flash
+      'models/gemini-2.0-flash-exp', // BRAND NEW (Separate Quota)
+      'models/gemini-1.5-flash', // Generic Alias (Try again)
       'models/gemini-1.5-flash-002',
       'models/gemini-1.5-pro',
       'models/gemini-1.5-flash-8b',
