@@ -53,11 +53,13 @@ export default async function DebugAIPage() {
                         testResults.push(`Key #${i + 1} (${masked}): ⚠️ 2.5 Failed (429) -> ✅ 1.5-Flash WORKING (Fallback)`);
                         modelStatus = 'Fallback to 1.5-Flash is WORKING.';
                     } catch (e15: any) {
-                        testResults.push(`Key #${i + 1} (${masked}): ❌ ALL MODELS FAILED (2.5: ${e25.response?.status}, 1.5: ${e15.response?.status})`);
+                        const msg25 = e25.message || 'Unknown Error';
+                        const msg15 = e15.message || 'Unknown Error';
+                        testResults.push(`Key #${i + 1} (${masked}): ❌ ALL FAILED. \n   [2.5]: ${msg25} \n   [1.5]: ${msg15}`);
                     }
                 }
             } catch (e: any) {
-                testResults.push(`Key #${i + 1} (${masked}): ❌ Failed (${e.response?.status || e.message})`);
+                testResults.push(`Key #${i + 1} (${masked}): ❌ Fatal Error: ${e.message}`);
                 if (modelStatus === 'Unknown') modelStatus = `Error: ${e.response?.status || 'Unknown'}`;
             }
         }
