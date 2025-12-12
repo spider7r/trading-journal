@@ -220,12 +220,65 @@ class CerebrasProvider implements AIProvider {
   }
 }
 
+// --- GITHUB MODELS IMPLEMENTATION (GPT-4o) ---
+class GithubProvider implements AIProvider {
+  name = 'GitHub Models (GPT-4o)';
+  private client: OpenAI | null = null;
+
+  constructor() {
+    const token = process.env.GITHUB_MODELS_TOKEN;
+    if (token) {
+      this.client = new OpenAI({
+        baseURL: "https://models.inference.ai.azure.com",
+        apiKey: token
+      });
+    }
+  }
+
+  async generate(prompt: string, systemPrompt: string, imageBase64?: string): Promise<string> {
+    if (!this.client) throw new Error("No GitHub Models Token Configured");
+
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt }
+    ];
+
+    // Handle Vision if image provided
+    if (imageBase64) {
+      // GPT-4o supports vision natively
+      messages[1].content = [
+        { type: "text", text: prompt },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`,
+            detail: "high"
+          }
+        }
+      ];
+    }
+
+    try {
+      const completion = await this.client.chat.completions.create({
+        messages: messages,
+        model: "gpt-4o",
+        temperature: 0.7,
+      });
+      return completion.choices[0]?.message?.content || "";
+    } catch (err: any) {
+      console.error(`[GitHub Models] Failed:`, err);
+      throw err;
+    }
+  }
+}
+
 // --- THE MANAGER (THE BRAIN) ---
 class AIManager {
   private providers: AIProvider[] = [];
 
   constructor() {
-    // Order defines priority: Gemini (Best) -> Groq (Fast) -> Cerebras (Backup)
+    // Priority: GitHub (GPT-4o) -> Gemini (Failover) -> Groq -> Cerebras
+    this.providers.push(new GithubProvider());
     this.providers.push(new GeminiProvider());
     this.providers.push(new GroqProvider());
     this.providers.push(new CerebrasProvider());

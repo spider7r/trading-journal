@@ -92,8 +92,10 @@ export default async function DebugAIPage() {
                 </div>
 
                 <div>
-                    <strong className="text-white">Parsed Keys:</strong> {diagnostics.keysFound} <br />
-                    <span className="text-xs text-gray-500">{JSON.stringify(diagnostics.keysPreview)}</span>
+                    <strong className="text-white">Gemini Keys:</strong> {diagnostics.keysFound}
+                </div>
+                <div>
+                    <strong className="text-white">GitHub Token:</strong> {process.env.GITHUB_MODELS_TOKEN ? '✅ Present' : '❌ Missing'}
                 </div>
 
                 <div className="border-t border-green-900 pt-4">
