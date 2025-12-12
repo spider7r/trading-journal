@@ -45,17 +45,33 @@ export default async function DebugAIPage() {
                     testResults.push(`Key #${i + 1} (${masked}): ✅ 2.5-Flash WORKING`);
                     modelStatus = '2.5-Flash is healthy.';
                 } catch (e25: any) {
-                    // 2. Fallback to Stable 1.5
-                    try {
-                        const model15 = genAI.getGenerativeModel({ model: 'models/gemini-1.5-flash' });
-                        const res15 = await model15.generateContent("Test 1.5");
-                        await res15.response;
-                        testResults.push(`Key #${i + 1} (${masked}): ⚠️ 2.5 Failed (429) -> ✅ 1.5-Flash WORKING (Fallback)`);
-                        modelStatus = 'Fallback to 1.5-Flash is WORKING.';
-                    } catch (e15: any) {
-                        const msg25 = e25.message || 'Unknown Error';
-                        const msg15 = e15.message || 'Unknown Error';
-                        testResults.push(`Key #${i + 1} (${masked}): ❌ ALL FAILED. \n   [2.5]: ${msg25} \n   [1.5]: ${msg15}`);
+                    // 2. Test Fallback Candidates (Specific Versions)
+                    let fallbackSuccess = false;
+                    // Note: 'gemini-1.5-flash' alias often 404s. Using specific versions.
+                    const candidates = ['gemini-1.5-flash-002', 'gemini-1.5-flash-001'];
+                    const results: string[] = [];
+
+                    for (const candid of candidates) {
+                        try {
+                            const m = genAI.getGenerativeModel({ model: `models/${candid}` });
+                            const r = await m.generateContent("Test");
+                            await r.response;
+                            results.push(`✅ ${candid}`);
+                            fallbackSuccess = true;
+                            // Update status if not already set by a previous candidate
+                            if (!modelStatus.includes('WORKING')) {
+                                modelStatus = `Fallback WORKING: ${candid}`;
+                            }
+                        } catch (ex: any) {
+                            results.push(`❌ ${candid} (${ex.response?.status || 404})`);
+                        }
+                    }
+
+                    if (fallbackSuccess) {
+                        testResults.push(`Key #${i + 1} (${masked}): ⚠️ 2.5 (429) -> ${results.find(r => r.includes('✅'))}`);
+                    } else {
+                        const msg25 = e25.message || 'Unknown';
+                        testResults.push(`Key #${i + 1} (${masked}): ❌ ALL FAILED. [2.5]: ${msg25} \n Candidates: ${results.join(', ')}`);
                     }
                 }
             } catch (e: any) {
