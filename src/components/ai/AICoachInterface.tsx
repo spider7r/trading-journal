@@ -3,10 +3,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
-import { Bot, Send, Sparkles, User, BrainCircuit, TrendingUp, Zap, ChevronRight, Loader2, Paperclip, X } from 'lucide-react'
+import { Bot, Send, Sparkles, User, BrainCircuit, TrendingUp, Zap, ChevronRight, Loader2, Paperclip, X, BarChart3, History, BookmarkPlus, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { sendChatMessage } from '@/app/(dashboard)/ai-coach/actions'
+import { sendChatMessage, validateChartImage } from '@/app/(dashboard)/ai-coach/actions'
 import { TradesTable } from '@/components/trades/TradesTable'
+import { LimitReachedDialog } from '@/components/upgrade/LimitReachedDialog'
+import { TradeAnalysisCard, parseAIResponse } from '@/components/ai/TradeAnalysisCard'
+import { AnalysisWizard } from '@/components/ai/AnalysisWizard'
+import { AnalyzingLoader } from '@/components/ai/AnalyzingLoader'
+import { AnalysisHistory } from '@/components/ai/AnalysisHistory'
+import { saveChatHistory, getChatHistory, getAnalysisHistory, getAnalysisStats, saveAnalysis } from '@/lib/analysis-storage'
 
 interface Message {
     id: string
@@ -14,12 +20,14 @@ interface Message {
     content: string
     image?: string
     timestamp: Date
+    saved?: boolean
 }
 
 interface AICoachInterfaceProps {
     initialTrades: any[]
     initialReports: any[]
 }
+
 
 export function AICoachInterface({ initialTrades, initialReports }: AICoachInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
@@ -32,11 +40,16 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
     ])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
+    const [isAnalyzing, setIsAnalyzing] = useState(false) // For chart analysis only
     const [selectedMode, setSelectedMode] = useState<'coach' | 'analyst' | 'psychologist'>('coach')
     const [selectedImage, setSelectedImage] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const [showSuggestions, setShowSuggestions] = useState(false)
+    const [showWizard, setShowWizard] = useState(false)
+    const [showHistory, setShowHistory] = useState(false)
+    const [analysisStats, setAnalysisStats] = useState({ total: 0, accuracy: 0 })
+    const [lastWizardContext, setLastWizardContext] = useState<any>(null)
 
     // Mode Configuration
     const modes = {
@@ -73,6 +86,11 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
         scrollToBottom()
     }, [messages])
 
+    // Load stats on mount
+    useEffect(() => {
+        setAnalysisStats(getAnalysisStats())
+    }, [])
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
@@ -83,6 +101,14 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
             reader.readAsDataURL(file)
         }
     }
+
+
+
+
+    const [showLimitDialog, setShowLimitDialog] = useState(false)
+    const [limitFeature, setLimitFeature] = useState<'chat' | 'vision'>('chat')
+
+    // ... (existing code: reset scroll, handleImageUpload)
 
     const handleSend = async () => {
         if (!input.trim() && !selectedImage) return
@@ -99,12 +125,12 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
         setInput('')
         setSelectedImage(null)
         setIsTyping(true)
-        setShowSuggestions(false) // Hide suggestions after sending
+        setShowSuggestions(false)
 
         // Context for the AI
         const context = {
             mode: selectedMode,
-            recentTrades: initialTrades.slice(0, 5), // Pass last 5 trades for context
+            recentTrades: initialTrades.slice(0, 5),
             lastReport: initialReports[0]
         }
 
@@ -122,15 +148,37 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
             setMessages(prev => [...prev, aiMsg])
         } else {
             // Error handling
-            const errorMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: response.error || "I'm having trouble connecting to the server right now. Please try again.",
-                timestamp: new Date()
+            console.error("AI Error:", response.error)
+
+            if (response.error && response.error.includes("Daily Limit Reached")) {
+                // Remove the user message wrapper if desired, or just show modal
+                setLimitFeature(selectedImage ? 'vision' : 'chat')
+                setShowLimitDialog(true)
+
+                // Optional: Remove the last user message if failed? 
+                // No, keep it so they can resend after upgrade.
+
+                // Show a system message in chat too
+                const errorMsg: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: "🔒 **Limit Reached**: Upgrade to Professional for unlimited access.",
+                    timestamp: new Date()
+                }
+                setMessages(prev => [...prev, errorMsg])
+
+            } else {
+                const errorMsg: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: response.error || "I'm having trouble connecting to the server right now. Please try again.",
+                    timestamp: new Date()
+                }
+                setMessages(prev => [...prev, errorMsg])
             }
-            setMessages(prev => [...prev, errorMsg])
         }
     }
+
 
     const handleQuickPrompt = (prompt: string) => {
         setInput(prompt)
@@ -142,9 +190,165 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
         setMessages([messages[0]])
     }
 
+    // Handle wizard submission
+    const handleWizardSubmit = async (context: any, images: string[]) => {
+        const asset = context.asset || context.customAsset
+
+        // Close wizard first
+        setShowWizard(false)
+
+        // STEP 1: Validate Chart Image First (Before Loading Animation)
+        if (images.length > 0) {
+            // Show validating state
+            const validatingMsg: Message = {
+                id: 'validating',
+                role: 'assistant',
+                content: '🔍 Validating chart image...',
+                timestamp: new Date()
+            }
+            setMessages(prev => [...prev, validatingMsg])
+
+            const validation = await validateChartImage(images[0])
+
+            // Remove validating message
+            setMessages(prev => prev.filter(m => m.id !== 'validating'))
+
+            if (!validation.isValid) {
+                // Show error message - NOT a valid chart
+                const errorMsg: Message = {
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    content: `## ❌ Invalid Chart Image
+
+**I cannot analyze this image because it is NOT a trading chart.**
+
+**What I detected:** ${validation.detected}
+
+**What I need:** A screenshot of a trading chart with candlesticks/price action from a platform like TradingView, MT4/MT5, or similar.
+
+Please upload a valid trading chart and try again.`,
+                    timestamp: new Date()
+                }
+                setMessages(prev => [...prev, errorMsg])
+                return // Stop here - don't proceed with analysis
+            }
+        }
+
+        // STEP 2: Valid chart - proceed with full analysis
+        // Build detailed prompt with context
+        const prompt = `
+Analyze this ${asset} chart on ${context.timeframe} timeframe.
+
+**CONTEXT:**
+- Trading Session: ${context.session}
+- Trade Type: ${context.tradeType}
+- Account Balance: $${context.accountBalance}
+- Risk Per Trade: ${context.riskPercent}%
+- News Impact: ${context.newsImpact}
+${context.existingDrawings ? '- I have existing drawings (zones, trendlines) marked on the chart' : ''}
+${context.notes ? `- Additional Notes: ${context.notes}` : ''}
+
+${images.length > 1 ? `I've provided ${images.length} timeframes for multi-timeframe analysis.` : ''}
+
+Please provide a complete analysis with specific entry, stop loss, and take profit levels. Calculate lot size based on my account balance and risk settings.
+`.trim()
+
+        // Add user message with image(s)
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: prompt,
+            image: images[0], // Primary image
+            timestamp: new Date()
+        }
+
+        setMessages(prev => [...prev, userMsg])
+        setIsTyping(true)
+        setIsAnalyzing(true) // Show fancy chart analysis loader
+
+        // Send to AI with all images
+        const contextObj = {
+            mode: 'analyst' as const,
+            recentTrades: initialTrades.slice(0, 5),
+            lastReport: initialReports[0],
+            wizardContext: context
+        }
+
+        const response = await sendChatMessage(prompt, contextObj, images[0])
+
+        const assistantMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: response.success && response.message ? response.message : 'Sorry, I encountered an error analyzing your chart. Please try again.',
+            timestamp: new Date()
+        }
+
+        setMessages(prev => [...prev, assistantMsg])
+        setIsTyping(false)
+        setIsAnalyzing(false)
+
+        // Store context for save functionality
+        setLastWizardContext(context)
+    }
+
+    // Save analysis to history
+    const handleSaveAnalysis = (messageId: string, content: string) => {
+        const parsed = parseAIResponse(content)
+        if (!parsed) return
+
+        const activeSetup = parsed.verdict.bias === 'BULLISH' ? parsed.bullishSetup : parsed.bearishSetup
+
+        saveAnalysis({
+            asset: parsed.pair,
+            timeframe: parsed.timeframe,
+            session: parsed.session,
+            bias: parsed.verdict.bias,
+            entryPrice: activeSetup?.entry,
+            stopLoss: activeSetup?.stopLoss,
+            takeProfit1: activeSetup?.takeProfit1,
+            probability: parsed.verdict.probability,
+            confluenceScore: activeSetup?.confluenceScore,
+            riskAmount: lastWizardContext?.accountBalance * (lastWizardContext?.riskPercent / 100),
+            lotSize: undefined,
+            outcome: 'PENDING',
+            rawResponse: content,
+            context: {
+                accountBalance: lastWizardContext?.accountBalance || 10000,
+                riskPercent: lastWizardContext?.riskPercent || 1,
+                newsImpact: lastWizardContext?.newsImpact || 'none',
+                notes: lastWizardContext?.notes || '',
+                tradeType: lastWizardContext?.tradeType || 'intraday'
+            }
+        })
+
+        // Mark message as saved
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, saved: true } : m))
+
+        // Update stats
+        setAnalysisStats(getAnalysisStats())
+    }
+
     return (
         <div className="flex flex-col gap-8 pb-12">
-            {/* Top Section: Chat Area (Full Width & Full Height) */}
+            {/* Analysis Wizard Modal */}
+            <AnalysisWizard
+                isOpen={showWizard}
+                onClose={() => setShowWizard(false)}
+                onSubmit={handleWizardSubmit}
+            />
+
+            {/* Analysis History Modal */}
+            <AnalysisHistory
+                isOpen={showHistory}
+                onClose={() => setShowHistory(false)}
+            />
+
+            <LimitReachedDialog
+                open={showLimitDialog}
+                onOpenChange={setShowLimitDialog}
+                feature={limitFeature}
+            />
+            {/* Top Section: Chat Area ... */}
             <div className="flex-1 flex flex-col rounded-[2rem] border border-zinc-800 bg-zinc-900 overflow-hidden shadow-2xl min-h-[85vh] transition-all duration-500"
                 style={{ borderColor: `${currentMode.color}20` }}
             >
@@ -175,6 +379,29 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* New Analysis Button */}
+                        <button
+                            onClick={() => setShowWizard(true)}
+                            className="px-4 py-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+                        >
+                            <BarChart3 className="h-4 w-4" />
+                            <span className="hidden sm:inline">New Analysis</span>
+                        </button>
+
+                        {/* History Button */}
+                        <button
+                            onClick={() => setShowHistory(true)}
+                            className="px-4 py-2 rounded-xl bg-violet-500/20 text-violet-400 border border-violet-500/30 hover:bg-violet-500/30 transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider relative"
+                        >
+                            <History className="h-4 w-4" />
+                            <span className="hidden sm:inline">History</span>
+                            {analysisStats.total > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-violet-500 text-black text-[9px] font-bold min-w-[18px] text-center">
+                                    {analysisStats.total}
+                                </span>
+                            )}
+                        </button>
+
                         {/* Mode Selector */}
                         <div className="hidden md:flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
                             {(Object.entries(modes) as [keyof typeof modes, typeof modes.coach][]).map(([key, mode]) => (
@@ -244,55 +471,107 @@ export function AICoachInterface({ initialTrades, initialReports }: AICoachInter
                                         <img src={msg.image} alt="User upload" className="w-full h-auto max-h-96 object-cover" />
                                     </div>
                                 )}
-                                <div className="prose prose-invert prose-sm max-w-none">
-                                    <ReactMarkdown
-                                        components={{
-                                            h1: ({ node, ...props }) => <h1 className="text-lg font-bold text-white mb-3 mt-4 border-b border-zinc-800 pb-2" {...props} />,
-                                            h2: ({ node, ...props }) => <h2 className="text-base font-bold mb-2 mt-4 uppercase tracking-wide flex items-center gap-2" style={{ color: currentMode.color }} {...props} />,
-                                            h3: ({ node, ...props }) => <h3 className="text-sm font-bold text-zinc-200 mb-2 mt-3" {...props} />,
-                                            ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
-                                            ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
-                                            li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-                                            strong: ({ node, ...props }) => <strong className="font-bold" style={{ color: currentMode.color }} {...props} />,
-                                            p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-zinc-300" {...props} />,
-                                            blockquote: ({ node, ...props }) => <blockquote className="border-l-2 pl-4 italic text-zinc-400 my-3 bg-zinc-900/50 py-2 pr-2 rounded-r-lg" style={{ borderColor: currentMode.color }} {...props} />,
-                                            code: ({ node, ...props }) => <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-xs font-mono text-zinc-200 border border-zinc-800" {...props} />,
-                                        }}
-                                    >
-                                        {msg.content}
-                                    </ReactMarkdown>
+                                <div className="max-w-none">
+                                    {/* Assistant messages: try widget, fallback to markdown */}
+                                    {msg.role === 'assistant' ? (
+                                        (() => {
+                                            // Try to parse as analysis
+                                            const parsed = parseAIResponse(msg.content)
+                                            if (parsed && parsed.pair !== 'N/A') {
+                                                // Valid analysis - show widget
+                                                return <TradeAnalysisCard aiResponse={msg.content} />
+                                            } else {
+                                                // Not a valid analysis - show as markdown text
+                                                return (
+                                                    <ReactMarkdown
+                                                        components={{
+                                                            h1: ({ node, ...props }) => <h1 className="text-lg font-bold text-white mb-3 mt-4 border-b border-zinc-800 pb-2" {...props} />,
+                                                            h2: ({ node, ...props }) => <h2 className="text-base font-bold text-emerald-400 mb-2 mt-4 uppercase tracking-wide" {...props} />,
+                                                            h3: ({ node, ...props }) => <h3 className="text-sm font-bold text-zinc-200 mb-2 mt-3" {...props} />,
+                                                            ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
+                                                            ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-4 space-y-1.5 mb-3 text-zinc-300" {...props} />,
+                                                            li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+                                                            strong: ({ node, ...props }) => <strong className="font-bold text-emerald-400" {...props} />,
+                                                            p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-zinc-300" {...props} />,
+                                                            blockquote: ({ node, ...props }) => <blockquote className="border-l-2 border-emerald-500 pl-4 italic text-zinc-400 my-3 bg-zinc-900/50 py-2 pr-2 rounded-r-lg" {...props} />,
+                                                            code: ({ node, ...props }) => <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-xs font-mono text-zinc-200 border border-zinc-800" {...props} />,
+                                                        }}
+                                                    >
+                                                        {msg.content}
+                                                    </ReactMarkdown>
+                                                )
+                                            }
+                                        })()
+                                    ) : (
+                                        <ReactMarkdown
+                                            components={{
+                                                p: ({ node, ...props }) => <p className="mb-3 last:mb-0 leading-relaxed text-zinc-300" {...props} />,
+                                            }}
+                                        >
+                                            {msg.content}
+                                        </ReactMarkdown>
+                                    )}
                                 </div>
                                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
                                     <span className="text-[10px] text-zinc-500 font-medium">
                                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
-                                    {msg.role === 'assistant' && (
-                                        <button
-                                            onClick={() => navigator.clipboard.writeText(msg.content)}
-                                            className="text-[10px] text-zinc-500 hover:text-white transition-colors uppercase tracking-wider font-bold flex items-center gap-1"
-                                        >
-                                            Copy
-                                        </button>
+                                    {msg.role === 'assistant' && msg.id !== 'welcome' && (
+                                        <div className="flex items-center gap-2">
+                                            {/* Save Button */}
+                                            <button
+                                                onClick={() => handleSaveAnalysis(msg.id, msg.content)}
+                                                disabled={msg.saved}
+                                                className={cn(
+                                                    "text-[10px] uppercase tracking-wider font-bold flex items-center gap-1 px-2 py-1 rounded-lg transition-colors",
+                                                    msg.saved
+                                                        ? "text-emerald-400 bg-emerald-500/10"
+                                                        : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                                                )}
+                                            >
+                                                <BookmarkPlus className="h-3 w-3" />
+                                                {msg.saved ? 'Saved' : 'Save'}
+                                            </button>
+                                            {/* Copy Button */}
+                                            <button
+                                                onClick={() => navigator.clipboard.writeText(msg.content)}
+                                                className="text-[10px] text-zinc-500 hover:text-white transition-colors uppercase tracking-wider font-bold flex items-center gap-1"
+                                            >
+                                                Copy
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
                         </motion.div>
                     ))}
 
+                    {/* Typing Indicator - Different for Chat vs Analysis */}
                     {isTyping && (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="flex gap-4 max-w-4xl mx-auto w-full"
+                            className="max-w-4xl mx-auto w-full"
                         >
-                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-zinc-900 border flex items-center justify-center shadow-lg" style={{ borderColor: `${currentMode.color}40` }}>
-                                <img src="/favicon.png" alt="AI" className="h-6 w-6 animate-pulse" />
-                            </div>
-                            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-3xl rounded-tl-none flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '0ms' }} />
-                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '150ms' }} />
-                                <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: currentMode.color, animationDelay: '300ms' }} />
-                            </div>
+                            {isAnalyzing ? (
+                                /* Fancy loader for chart analysis */
+                                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden">
+                                    <AnalyzingLoader />
+                                </div>
+                            ) : (
+                                /* Simple typing dots for regular chat */
+                                <div className="flex items-center gap-4 p-4">
+                                    <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/20">
+                                        <Bot className="h-5 w-5 text-emerald-400" />
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                    <span className="text-xs text-zinc-500">Thinking...</span>
+                                </div>
+                            )}
                         </motion.div>
                     )}
                     <div ref={messagesEndRef} />

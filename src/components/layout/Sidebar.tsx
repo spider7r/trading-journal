@@ -14,19 +14,22 @@ import {
     Calendar,
     Trophy,
     Target,
-    History
+    History,
+    Zap,
+    ArrowUp // Added ArrowUp import
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Journal', href: '/journal', icon: Calendar },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Analytics', href: '/analytics', icon: LineChart },
+    { name: 'The War Room', href: '/war-room', icon: Zap },
+    { name: 'Journal', href: '/journal', icon: BookOpen },
     { name: 'Notes', href: '/notes', icon: BookOpen },
     { name: 'Trades', href: '/trades', icon: LineChart },
     { name: 'Strategies', href: '/strategies', icon: Target },
     { name: 'Backtest', href: '/backtest', icon: History },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Achievements', href: '/achievements', icon: Trophy },
     { name: 'AI Coach', href: '/ai-coach', icon: Bot },
     { name: 'Settings', href: '/settings', icon: Settings },
@@ -38,8 +41,8 @@ export function Sidebar() {
     const accountId = searchParams.get('accountId')
 
     return (
-        <div className="hidden h-full w-60 flex-col border-r border-zinc-800/50 bg-zinc-900/50 backdrop-blur-xl lg:flex">
-            <div className="flex h-24 items-center gap-x-3 px-6 border-b border-zinc-800/50">
+        <div className="hidden h-full w-60 flex-col border-r border-white/5 bg-[#0A0A0A]/80 backdrop-blur-xl lg:flex">
+            <div className="flex h-24 items-center gap-x-3 px-6 border-b border-white/5">
                 <div className="relative h-16 w-48 overflow-hidden">
                     <Image
                         src="/logo.png"
@@ -65,7 +68,7 @@ export function Sidebar() {
                                                     'group flex gap-x-3 rounded-xl p-3 text-sm font-medium transition-all duration-200',
                                                     isActive
                                                         ? 'bg-[#00E676]/10 text-[#00E676] shadow-[0_0_20px_-5px_rgba(0,230,118,0.3)]'
-                                                        : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100'
+                                                        : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-100'
                                                 )}
                                             >
                                                 <item.icon

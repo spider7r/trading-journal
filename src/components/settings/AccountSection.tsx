@@ -82,48 +82,6 @@ export function AccountSection({ user }: { user: any }) {
                         <p className="mt-4 text-sm font-bold text-emerald-500">{message}</p>
                     )}
                 </div>
-
-                {/* Auto-Sync Section */}
-                <div className="border-t border-zinc-800 pt-6">
-                    <h4 className="mb-4 text-xs font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-2">
-                        Auto-Sync (MT5 / cTrader) <span className="text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded text-emerald-500 border border-emerald-500/20">NEW</span>
-                    </h4>
-                    <p className="text-sm text-zinc-400 mb-4">
-                        Automatically import trades from your platform using our free plugin.
-                    </p>
-
-                    <div className="space-y-4">
-                        {!syncKey ? (
-                            <button
-                                onClick={generateKey}
-                                disabled={generatingKey}
-                                className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-all"
-                            >
-                                {generatingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                Reveal Sync Key
-                            </button>
-                        ) : (
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Your Sync Key</label>
-                                <div onClick={() => { navigator.clipboard.writeText(syncKey); setMessage('Key Copied!') }} className="cursor-pointer group relative rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 font-mono text-emerald-500 font-bold hover:bg-emerald-500/10 transition-all">
-                                    {syncKey}
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-emerald-500/50 group-hover:text-emerald-500">Click to Copy</span>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="mt-4 grid grid-cols-2 gap-4">
-                            <a href="/downloads/Tradal_Sync_MT5.mq5" download className="block p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:border-emerald-500/50 hover:bg-zinc-900 transition-all text-center">
-                                <div className="text-lg font-black text-white mb-1">MetaTrader 5</div>
-                                <div className="text-xs text-emerald-500 font-bold uppercase">Download EA (.mq5)</div>
-                            </a>
-                            <a href="/downloads/Tradal_Sync_cTrader.cs" download className="block p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:border-blue-500/50 hover:bg-zinc-900 transition-all text-center">
-                                <div className="text-lg font-black text-white mb-1">cTrader</div>
-                                <div className="text-xs text-blue-500 font-bold uppercase">Download cBot (.cs)</div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     )

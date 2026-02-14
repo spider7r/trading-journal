@@ -5,6 +5,9 @@ import { createClient } from '@/utils/supabase/client'
 import { SettingsSidebar } from '@/components/settings/SettingsSidebar'
 import { ProfileSection } from '@/components/settings/ProfileSection'
 import { AccountSection } from '@/components/settings/AccountSection'
+import { ConnectorsSection } from '@/components/settings/ConnectorsSection'
+import { BillingSection } from '@/components/settings/BillingSection'
+import { GuardianSettings } from '@/components/settings/GuardianSettings'
 import { TradingPreferences } from '@/components/settings/TradingPreferences'
 
 export default function SettingsPage() {
@@ -59,7 +62,10 @@ export default function SettingsPage() {
 
                 <main className="flex-1">
                     {activeSection === 'profile' && <ProfileSection user={user} profile={profile} />}
+                    {activeSection === 'billing' && <BillingSection user={user} />}
                     {activeSection === 'account' && <AccountSection user={user} />}
+                    {activeSection === 'guardian' && <GuardianSettings user={user} />}
+                    {activeSection === 'connectors' && <ConnectorsSection user={user} />}
                     {activeSection === 'trading' && <TradingPreferences user={user} profile={profile} />}
                     {activeSection === 'appearance' && (
                         <div className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 p-6 backdrop-blur-sm">

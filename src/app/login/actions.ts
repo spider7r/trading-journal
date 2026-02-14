@@ -11,6 +11,7 @@ export async function login(formData: FormData) {
 
         const email = formData.get('email') as string
         const password = formData.get('password') as string
+        const plan = formData.get('plan') as string
 
         const { error } = await supabase.auth.signInWithPassword({
             email,
@@ -19,10 +20,14 @@ export async function login(formData: FormData) {
 
         if (error) {
             console.error('Supabase Auth Error:', error)
-            return redirect(`/login?error=${encodeURIComponent(error.message)}`)
+            return redirect(`/login?error=${encodeURIComponent(error.message)}${plan ? `&plan=${plan}` : ''}`)
         }
 
         revalidatePath('/', 'layout')
+
+        if (plan) {
+            return redirect(`/checkout?plan=${plan}`)
+        }
     } catch (error) {
         // Check if it's a Next.js redirect error
         if ((error as any)?.digest?.startsWith('NEXT_REDIRECT')) {
@@ -43,6 +48,7 @@ export async function signup(formData: FormData) {
     const password = formData.get('password') as string
     const fullName = formData.get('fullName') as string
     const phone = formData.get('phone') as string
+    const plan = formData.get('plan') as string
 
     // Server-side validation
     const emailValidation = validateEmail(email)
@@ -55,6 +61,16 @@ export async function signup(formData: FormData) {
         return { error: passwordValidation.error }
     }
 
+    const { cookies } = await import('next/headers')
+    const cookieStore = cookies()
+    const affiliateRef = cookieStore.get('affiliate_ref')?.value
+
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.thetradal.com'
+    const redirectTo = plan
+        ? `${origin}/auth/callback?next=/checkout?plan=${plan}`
+        : `${origin}/auth/callback`
+
+
     const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -62,7 +78,9 @@ export async function signup(formData: FormData) {
             data: {
                 full_name: fullName,
                 phone_number: phone,
+                referred_by: affiliateRef || null,
             },
+            emailRedirectTo: redirectTo
         },
     })
 

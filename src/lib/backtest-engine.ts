@@ -24,6 +24,7 @@ export interface Order {
     fillPrice?: number
     stopLoss?: number
     takeProfit?: number
+    strategyId?: string
 }
 
 export interface Trade {
@@ -43,6 +44,7 @@ export interface Trade {
     swap: number
     stopLoss?: number
     takeProfit?: number
+    strategyId?: string
 }
 
 export interface ChallengeRules {
@@ -137,6 +139,19 @@ export class BacktestEngine {
         return newOrder
     }
 
+    public updatePrice(price: number, time: number = Date.now()) {
+        // Update current quote based on single price (Close)
+        const spread = 0.0002 * price // 2 bps spread assumption
+        this.currentQuote = {
+            time,
+            bid: price - (spread / 2),
+            ask: price + (spread / 2),
+            spread
+        }
+        // Update Equity/PnL based on new price
+        this.updateEquity()
+    }
+
     public processCandle(candle: { open: number, high: number, low: number, close: number, time: number }) {
         // 1. Update Quote (Synthetic Bid/Ask based on Close)
         // In a real tick simulation, we'd use tick data. For candles, we simulate price movement.
@@ -209,21 +224,59 @@ export class BacktestEngine {
             let close = false
             let exitPrice = 0
 
+            // GAP LOSS LOGIC: Check Open price first!
+            // If the candle OPENS beyond the SL, we exit at OPEN, not SL.
+            // This simulates realistic gap slippage.
+            const open = candle ? candle.open : (trade.side === 'LONG' ? bid : ask)
+
             if (trade.side === 'LONG') {
-                if (trade.stopLoss && low <= trade.stopLoss) {
-                    close = true
-                    exitPrice = trade.stopLoss
-                } else if (trade.takeProfit && high >= trade.takeProfit) {
-                    close = true
-                    exitPrice = trade.takeProfit
+                if (trade.stopLoss) {
+                    // 1. GAP CHECK: Did we open below SL? -> Exit at Open (Bad Fill)
+                    if (open < trade.stopLoss) {
+                        close = true
+                        exitPrice = open
+                    }
+                    // 2. INTRADAY CHECK: Did Low hit SL? -> Exit at SL (Standard Fill)
+                    else if (low <= trade.stopLoss) {
+                        close = true
+                        exitPrice = trade.stopLoss
+                    }
                 }
-            } else {
-                if (trade.stopLoss && high >= trade.stopLoss) {
-                    close = true
-                    exitPrice = trade.stopLoss
-                } else if (trade.takeProfit && low <= trade.takeProfit) {
-                    close = true
-                    exitPrice = trade.takeProfit
+
+                // TP Logic (Check Gaps benefit too)
+                if (!close && trade.takeProfit) {
+                    if (open > trade.takeProfit) {
+                        close = true
+                        exitPrice = open // Gap Up Profit!
+                    } else if (high >= trade.takeProfit) {
+                        close = true
+                        exitPrice = trade.takeProfit
+                    }
+                }
+
+            } else { // SHORT
+                if (trade.stopLoss) {
+                    // 1. GAP CHECK: Did we open above SL? -> Exit at Open (Bad Fill)
+                    if (open > trade.stopLoss) {
+                        close = true
+                        exitPrice = open
+                    }
+                    // 2. INTRADAY CHECK: Did High hit SL?
+                    else if (high >= trade.stopLoss) {
+                        close = true
+                        exitPrice = trade.stopLoss
+                    }
+                }
+
+                // TP Logic
+                if (!close && trade.takeProfit) {
+                    if (open < trade.takeProfit) {
+                        close = true
+                        exitPrice = open // Gap Down Profit!
+                    } else if (low <= trade.takeProfit) {
+                        close = true
+                        exitPrice = trade.takeProfit
+                    }
                 }
             }
 
@@ -251,7 +304,8 @@ export class BacktestEngine {
             commission: 0,
             swap: 0,
             stopLoss: order.stopLoss,
-            takeProfit: order.takeProfit
+            takeProfit: order.takeProfit,
+            strategyId: order.strategyId
         }
         this.trades.push(trade)
     }

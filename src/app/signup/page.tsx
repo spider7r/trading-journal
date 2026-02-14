@@ -9,7 +9,12 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase/client'
 
+import { useSearchParams } from 'next/navigation'
+
 export default function SignupPage() {
+    const searchParams = useSearchParams()
+    const plan = searchParams.get('plan')
+
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
@@ -18,10 +23,17 @@ export default function SignupPage() {
     const handleGoogleLogin = async () => {
         setGoogleLoading(true)
         const supabase = createClient()
+        const origin = window.location.origin
+        if (plan) {
+            document.cookie = `purchase_plan=${plan}; path=/; max-age=3600; SameSite=Lax`
+        }
+
+        const redirectTo = `${origin}/auth/callback`
+
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
+                redirectTo,
             },
         })
     }
@@ -195,6 +207,7 @@ export default function SignupPage() {
                                 </div>
 
                                 <form action={handleSubmit} className="space-y-5">
+                                    {plan && <input type="hidden" name="plan" value={plan} />}
                                     {error && (
                                         <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400 font-medium flex items-center gap-2">
                                             <AlertCircle className="h-4 w-4" />

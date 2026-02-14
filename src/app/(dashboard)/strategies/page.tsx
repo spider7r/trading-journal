@@ -7,11 +7,14 @@ import { getStrategies, deleteStrategy } from './actions'
 import { cn } from '@/lib/utils'
 import { CreateStrategyModal } from '@/components/strategies/CreateStrategyModal'
 import Link from 'next/link'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
+import { toast } from 'sonner'
 
 export default function StrategiesPage() {
     const [strategies, setStrategies] = useState<any[]>([])
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
+    const { confirm } = useConfirm()
 
     useEffect(() => {
         loadStrategies()
@@ -26,9 +29,17 @@ export default function StrategiesPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (confirm('Are you sure you want to delete this strategy?')) {
+        const confirmed = await confirm({
+            title: 'Delete Strategy?',
+            description: 'This will permanently delete this strategy and all its associated data. This action cannot be undone.',
+            type: 'danger',
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+        })
+        if (confirmed) {
             const res = await deleteStrategy(id)
             if (res.success) {
+                toast.success('Strategy deleted')
                 loadStrategies()
             }
         }
@@ -101,20 +112,38 @@ export default function StrategiesPage() {
                                 <h3 className="text-xl font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors">{strategy.name}</h3>
                                 <p className="text-zinc-400 text-sm line-clamp-2 mb-6 h-10">{strategy.description || "No description provided."}</p>
 
-                                <div className="grid grid-cols-2 gap-4 mb-6">
-                                    <div className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50">
-                                        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Win Rate</div>
-                                        <div className="text-lg font-black text-white">
-                                            {strategy.stats?.winRate || 0}%
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    {/* Live Stats */}
+                                    <div className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50 relative overflow-hidden group/stat">
+                                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                        </div>
+                                        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Live WR</div>
+                                        <div className="text-xl font-black text-white">
+                                            {strategy.stats?.live?.winRate || 0}%
+                                        </div>
+                                        <div className={cn(
+                                            "text-xs font-bold mt-1",
+                                            (strategy.stats?.live?.netPnl || 0) >= 0 ? "text-emerald-400" : "text-red-400"
+                                        )}>
+                                            ${(strategy.stats?.live?.netPnl || 0).toLocaleString()}
                                         </div>
                                     </div>
-                                    <div className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50">
-                                        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Net P&L</div>
+
+                                    {/* Backtest Stats */}
+                                    <div className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50 relative overflow-hidden group/stat">
+                                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                        </div>
+                                        <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Test WR</div>
+                                        <div className="text-xl font-black text-white">
+                                            {strategy.stats?.backtest?.winRate || 0}%
+                                        </div>
                                         <div className={cn(
-                                            "text-lg font-black",
-                                            (strategy.stats?.netPnl || 0) >= 0 ? "text-emerald-400" : "text-red-400"
+                                            "text-xs font-bold mt-1",
+                                            (strategy.stats?.backtest?.netPnl || 0) >= 0 ? "text-blue-400" : "text-red-400"
                                         )}>
-                                            ${(strategy.stats?.netPnl || 0).toLocaleString()}
+                                            ${(strategy.stats?.backtest?.netPnl || 0).toLocaleString()}
                                         </div>
                                     </div>
                                 </div>

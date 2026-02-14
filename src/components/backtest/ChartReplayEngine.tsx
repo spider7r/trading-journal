@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { SmartChart, PriceLineConfig } from './SmartChart'
+import LoadingTips from './LoadingTips'
 import { Candle } from '@/lib/binance'
-import { aggregateCandles } from '@/lib/candle-utils'
+import { aggregateCandles, Timeframe } from '@/lib/candle-utils'
 import { updateBacktestSession, saveBacktestTrade, fetchMarketData } from '@/app/(dashboard)/backtest/actions'
 import { toast } from 'sonner'
+import { getCachedData, waitForPrefetch, isPrefetching, clearPrefetchCache } from '@/lib/prefetch-cache'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
-    ArrowLeft, Settings, SkipBack, Pause, Play, StepForward, SkipForward,
-    RotateCcw, Plus, Newspaper, BookOpen, BarChart2
+    Plus, BarChart2
 } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
 import { timezones } from '@/lib/timezones'
 
 import { BacktestToolbar } from './BacktestToolbar'
@@ -23,8 +21,16 @@ import { BacktestBottomBar } from './BacktestBottomBar'
 import { PlaceOrderDialog } from './PlaceOrderDialog'
 import { BacktestEngine, Order, Trade, ChallengeStatus } from '@/lib/backtest-engine'
 import { TimeframeSelector } from './TimeframeSelector'
-import { ChartContextMenu } from './ChartContextMenu'
 import { ChallengeStatusWidget } from './ChallengeStatusWidget'
+import { BacktestControls } from './BacktestControls' // NEW WIDGET
+
+import dynamic from 'next/dynamic'
+
+// Dynamic Import for TradingView Widget
+const BacktestTVChart = dynamic(
+    () => import('./BacktestTVChart'),
+    { ssr: false }
+)
 
 interface ChartReplayEngineProps {
     initialSession?: any
@@ -32,15 +38,62 @@ interface ChartReplayEngineProps {
 }
 
 export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartReplayEngineProps) {
-    const [fullData, setFullData] = useState<Candle[]>([])
-    const [visibleData, setVisibleData] = useState<Candle[]>([])
-    const [currentIndex, setCurrentIndex] = useState(0)
+    // Data Management (Ref + State)
+    // Base 1m data - fetched once and stored
+    // Current interval data - ref for Datafeed (no re-render)
+    const fullDataRef = useRef<Candle[]>([])
+
+    // ═══════════════════════════════════════════════════════════════
+    // SYNC INIT: Check global cache immediately for instant load
+    // ═══════════════════════════════════════════════════════════════
+    const [fullData, setFullData] = useState<Candle[]>(() => {
+        if (initialSession?.asset) { // 'asset' is the field in DB, 'pair' is mapped
+            const pair = initialSession.asset
+            const cached = getCachedData(pair)
+            if (cached && cached.length > 0) {
+                console.log(`[Backtest] ⚡ SYNC INIT: Found ${cached.length} candles in cache!`)
+                // If initial interval is 1m, use as is. If not, aggregate synchronously.
+                // Default interval is '15m' (set below)
+                // We'll use the default '15m' here to match what state will be
+                return aggregateCandles(cached, '15m')
+            }
+        }
+        return []
+    })
+
+    // Update ref immediately if we have data
+    if (fullDataRef.current.length === 0 && fullData.length > 0) {
+        fullDataRef.current = fullData
+    }
+
+    // Core State
+    const [currentIndex, setCurrentIndex] = useState(() => {
+        // If we have data, calculate correct index synchronously
+        if (fullData.length > 0) {
+            const startStr = initialSession?.start_date
+            if (startStr) {
+                const startTime = new Date(startStr).getTime()
+                const tSec = startTime / 1000
+                // Find index
+                for (let i = fullData.length - 1; i >= 0; i--) {
+                    if (fullData[i].time <= tSec) return Math.max(0, i)
+                }
+            }
+            return fullData.length - 1
+        }
+        return 0
+    })
+
     const [isPlaying, setIsPlaying] = useState(false)
     const [speed, setSpeed] = useState(1000)
-    const [pair, setPair] = useState(initialSession?.pair || 'BTCUSDT')
+    const [pair, setPair] = useState(initialSession?.asset || 'BTCUSDT')
     const [interval, setInterval] = useState('15m')
     const [timezone, setTimezone] = useState(initialSession?.timezone || 'Etc/UTC')
-    const [isLoading, setIsLoading] = useState(false)
+
+    // Initialize loading to FALSE if we have data
+    const [isLoading, setIsLoading] = useState(() => {
+        return fullData.length === 0
+    })
 
     // Engine State
     const engineRef = useRef<BacktestEngine | null>(null)
@@ -55,52 +108,52 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
     const [sessionId, setSessionId] = useState<string | null>(initialSession?.id || null)
     const [quantity, setQuantity] = useState(1)
     const [showOrderPanel, setShowOrderPanel] = useState(false)
-    const [activeTool, setActiveTool] = useState<string | null>(null)
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, price: number } | null>(null)
 
-    // Draggable Controls State
-    const [controlPosition, setControlPosition] = useState({ x: 500, y: 100 })
-    const [isDraggingControls, setIsDraggingControls] = useState(false)
-    const dragOffsetRef = useRef({ x: 0, y: 0 })
-
-    useEffect(() => {
-        setControlPosition({ x: window.innerWidth / 2, y: 100 })
-    }, [])
-
-    const handleDragStart = (e: React.MouseEvent) => {
-        setIsDraggingControls(true)
-        dragOffsetRef.current = {
-            x: e.clientX - controlPosition.x,
-            y: e.clientY - controlPosition.y
-        }
+    // Triggered by synchronous init
+    const loadedParamsRef = useRef<{ pair: string, interval: string } | null>(null)
+    // Initialize ref if we have data (mimic useState logic)
+    if (fullData.length > 0 && !loadedParamsRef.current) {
+        loadedParamsRef.current = { pair: initialSession?.pair || 'BTCUSDT', interval: '15m' }
     }
 
+    const loadingRef = useRef<boolean>(false) // Prevent concurrent loadData calls
+
+    // Background Prefetch Cache: Store 1m data for INSTANT timeframe switching (like FXReplay)
+    // Initialize ref from cache if available
+    const prefetchedDataRef = useRef<Candle[] | null>(
+        initialSession?.pair ? (getCachedData(initialSession.pair) as Candle[] || null) : null
+    )
+
+    const [prefetchStatus, setPrefetchStatus] = useState<'idle' | 'loading' | 'done'>(() => {
+        return prefetchedDataRef.current ? 'done' : 'idle'
+    })
+
+
+
+    // TRIGGER PROGRESSIVE LOADING
+    const isFetchingHistoryRef = useRef(false)
+    const historyLoadCountRef = useRef(0)
+
+    // START FIX: Time Tracking (Top Level)
+    const currentSimTimeRef = useRef<number | null>(initialSession?.last_replay_time || (initialSession?.start_date ? new Date(initialSession.start_date).getTime() : null))
+
+    // IMPORTANT: Track if we're in the middle of a timeframe switch
+    // During switches, we should NOT update currentSimTimeRef to avoid corrupting the position
+    const isTimeframeSwitchingRef = useRef<boolean>(false)
+    // Store the "intended" time position separately - this never gets corrupted by limited data
+    const intendedTimeRef = useRef<number | null>(initialSession?.last_replay_time || (initialSession?.start_date ? new Date(initialSession.start_date).getTime() : null))
+
     useEffect(() => {
-        const handleDrag = (e: MouseEvent) => {
-            if (isDraggingControls) {
-                setControlPosition({
-                    x: e.clientX - dragOffsetRef.current.x,
-                    y: e.clientY - dragOffsetRef.current.y
-                })
-            }
+        // Only update the time reference if NOT switching timeframes
+        // This prevents 1m (limited data) from corrupting the position
+        if (!isTimeframeSwitchingRef.current && fullData.length > 0 && fullData[currentIndex]) {
+            const t = fullData[currentIndex].time
+            const timeMs = t < 10000000000 ? t * 1000 : t
+            currentSimTimeRef.current = timeMs
+            intendedTimeRef.current = timeMs // Also update intended time on manual navigation
         }
-
-        const handleDragEnd = () => {
-            setIsDraggingControls(false)
-        }
-
-        if (isDraggingControls) {
-            window.addEventListener('mousemove', handleDrag)
-            window.addEventListener('mouseup', handleDragEnd)
-        }
-
-        return () => {
-            window.removeEventListener('mousemove', handleDrag)
-            window.removeEventListener('mouseup', handleDragEnd)
-        }
-    }, [isDraggingControls])
-
-    const timerRef = useRef<number | null>(null)
+    }, [currentIndex, fullData])
+    // END FIX
 
     // Initialize Engine
     useEffect(() => {
@@ -108,7 +161,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
             // Map DB trades to Engine trades
             const mappedTrades: Trade[] = initialTrades.map(t => ({
                 id: t.id,
-                orderId: 'hist', // Placeholder
+                orderId: 'hist',
                 sessionId: t.backtest_session_id,
                 symbol: t.pair,
                 side: t.type,
@@ -126,7 +179,6 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
             engineRef.current = new BacktestEngine(balance, async (trade) => {
                 if (sessionId) {
                     try {
-                        // Save Trade
                         await saveBacktestTrade({
                             backtest_session_id: sessionId,
                             pair: trade.symbol,
@@ -138,457 +190,536 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                             entry_date: new Date(trade.entryTime).toISOString(),
                             exit_date: new Date(trade.exitTime!).toISOString()
                         })
-
-                        // Update Session Balance
-                        if (engineRef.current) {
-                            await updateBacktestSession(sessionId, {
-                                current_balance: engineRef.current.getStats().balance
-                            })
-                        }
+                        await updateBacktestSession(sessionId, {
+                            current_balance: engineRef.current?.getStats().balance
+                        })
                     } catch (error) {
                         console.error('Failed to save trade:', error)
-                        toast.error('Failed to save trade to database')
                     }
                 }
             }, mappedTrades,
                 initialSession?.challenge_rules,
                 initialSession?.challenge_status,
                 async (status) => {
-                    setChallengeStatus({ ...status }) // Force update
+                    setChallengeStatus({ ...status })
                     if (sessionId) {
                         try {
-                            await updateBacktestSession(sessionId, {
-                                challenge_status: status
-                            })
-                        } catch (error) {
-                            console.error('Failed to update challenge status:', error)
-                        }
+                            await updateBacktestSession(sessionId, { challenge_status: status })
+                        } catch (error) { console.error(error) }
                     }
                 })
         }
-    }, [sessionId, initialTrades, balance])
+    }, [sessionId, initialTrades])
 
-    // Fetch Data
+    // Fetch Data (STRICT & LOOP-PROOF)
     useEffect(() => {
         let isMounted = true
         const loadData = async () => {
-            setIsLoading(true)
+            // GUARD: Prevent concurrent loadData calls causing infinite loop
+            if (loadingRef.current) {
+                console.log('[Backtest] ⛔ Already loading, skipping duplicate call')
+                return
+            }
+
+            // GUARD: Sync Init Check
+            // If we just initialized synchronously with data, and params match, skip fetch
+            if (fullData.length > 0 &&
+                loadedParamsRef.current?.pair === pair &&
+                loadedParamsRef.current?.interval === interval &&
+                !isTimeframeSwitchingRef.current) {
+                console.log('[Backtest] ⚡ Already initialized synchronously, skipping fetch')
+
+                // Allow progressive loading to trigger
+                return
+            }
+
+            loadingRef.current = true
+
+            // *** FIX: Set flag to prevent position corruption during switch ***
+            isTimeframeSwitchingRef.current = true
+
+            console.log('═══════════════════════════════════════')
+            console.log('[Backtest] loadData START')
+            console.log('  Pair:', pair)
+            console.log('  Interval:', interval)
+            console.log('  Cached 1m data?', !!prefetchedDataRef.current, prefetchedDataRef.current?.length || 0, 'candles')
+            console.log('═══════════════════════════════════════')
+
             const startTime = initialSession?.start_date ? new Date(initialSession.start_date).getTime() : undefined
             const endTime = initialSession?.end_date ? new Date(initialSession.end_date).getTime() : undefined
-            const lastReplayTime = initialSession?.last_replay_time ? Number(initialSession.last_replay_time) : undefined
 
-            // Capture current time to maintain position during interval switch
-            let currentTime: number | null = null
-            if (fullData.length > 0 && currentIndex < fullData.length) {
-                currentTime = fullData[currentIndex].time as number
-            }
+            // ═══════════════════════════════════════════════════════════════
+            // STEP 1: Get 1m base data
+            // Priority: 1) Local ref cache → 2) Global prefetch cache → 3) Fresh Dukascopy fetch
+            // ═══════════════════════════════════════════════════════════════
+            let baseData1m = prefetchedDataRef.current
 
-            // Dynamic buffer based on interval, BUT ensure at least 1 day
-            let bufferTime = 5 * 24 * 60 * 60 * 1000 // Default 5 days
-            if (interval === '1h' || interval === '4h') {
-                bufferTime = 60 * 24 * 60 * 60 * 1000 // 60 days
-            } else if (interval === 'D' || interval === '1W') {
-                bufferTime = 365 * 24 * 60 * 60 * 1000 // 365 days
-            }
-
-            // Ensure minimum 2 days buffer if start time exists
-            if (startTime) {
-                const minBuffer = 2 * 24 * 60 * 60 * 1000
-                if (bufferTime < minBuffer) bufferTime = minBuffer
-            }
-
-            const fetchStartTime = startTime ? startTime - bufferTime : undefined
-
-            // Fetch more data for higher timeframes to ensure we don't run out
-            const limit = interval === 'D' || interval === '1W' ? 5000 : 2000
-
-            let data: any[] = []
-
-            try {
-                // 1. Try to use pre-loaded session data
-                // 1. Try to use pre-loaded session data
-                // Only use if it matches the requested interval!
-                let useStoredData = false
-                if (initialSession?.candle_data && Array.isArray(initialSession.candle_data) && initialSession.candle_data.length > 1) {
-                    // Infer interval from stored data
-                    const t1 = initialSession.candle_data[0].time
-                    const t2 = initialSession.candle_data[1].time
-                    const deltaSec = t2 - t1
-
-                    // Map requested interval to seconds
-                    let requestedSec = 3600 // Default 1h
-                    if (interval === '1m') requestedSec = 60
-                    else if (interval === '5m') requestedSec = 300
-                    else if (interval === '15m') requestedSec = 900
-                    else if (interval === '1h') requestedSec = 3600
-                    else if (interval === '4h') requestedSec = 14400
-                    else if (interval === '1d' || interval === 'D') requestedSec = 86400
-                    else if (interval === '1w' || interval === 'W') requestedSec = 604800
-
-                    if (deltaSec === requestedSec) {
-                        useStoredData = true
-                    } else {
-                        console.log(`Stored data interval (${deltaSec}s) does not match requested (${requestedSec}s). Fetching new data.`)
+            if (!baseData1m || baseData1m.length === 0) {
+                // Check GLOBAL prefetch cache (data downloaded during session wizard)
+                const cachedFromWizard = getCachedData(pair)
+                if (cachedFromWizard && cachedFromWizard.length > 0) {
+                    console.log(`[Backtest] ⚡⚡⚡ INSTANT LOAD from wizard prefetch! ${cachedFromWizard.length} candles`)
+                    baseData1m = cachedFromWizard as Candle[]
+                    prefetchedDataRef.current = baseData1m
+                    setPrefetchStatus('done')
+                    clearPrefetchCache() // Free global cache memory
+                } else if (isPrefetching(pair, initialSession?.start_date || '', initialSession?.end_date || '')) {
+                    // Prefetch is in progress — wait for it!
+                    console.log('[Backtest] ⏳ Wizard prefetch in progress, waiting...')
+                    setIsLoading(true)
+                    const waitedData = await waitForPrefetch()
+                    if (waitedData && waitedData.length > 0) {
+                        console.log(`[Backtest] ⚡ Wizard prefetch completed! ${waitedData.length} candles`)
+                        baseData1m = waitedData as Candle[]
+                        prefetchedDataRef.current = baseData1m
+                        setPrefetchStatus('done')
+                        clearPrefetchCache()
                     }
                 }
+            }
 
-                if (useStoredData) {
-                    console.log('Using pre-loaded candle data from session')
-                    data = initialSession.candle_data
-                } else {
-                    // 2. Fallback to fetching (or if interval mismatch)
-                    data = await fetchMarketData(pair, interval, limit, fetchStartTime, endTime)
+            if (!baseData1m || baseData1m.length === 0) {
+                // FALLBACK: Fetch 1m data from Dukascopy (one-time cost)
+                setIsLoading(true)
+                console.log('[Backtest] 📡 Fetching 1m base data from Dukascopy...')
+
+                // Buffer: 200 candles of 15m = 3000 x 1m candles before session start
+                const bufferMs = 200 * 15 * 60 * 1000 // 50 hours
+                const fetchStart = startTime ? startTime - bufferMs : undefined
+
+                // Calculate needed candles
+                let neededCandles = 50000
+                if (startTime && endTime) {
+                    const sessionMinutes = (endTime - startTime) / (60 * 1000)
+                    const bufferMinutes = 200 * 15
+                    neededCandles = Math.ceil(sessionMinutes + bufferMinutes + 100)
+                    console.log(`  Session: ${(sessionMinutes / 60).toFixed(1)} hours`)
+                    console.log(`  Buffer: ${(bufferMinutes / 60).toFixed(1)} hours`)
+                    console.log(`  Total 1m candles needed: ${neededCandles}`)
                 }
 
-                if (!isMounted) return
+                const limit = Math.min(neededCandles, 100000)
 
-                if (!data || data.length === 0) {
-                    toast.error("No market data found for this period")
+                try {
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Data load timeout")), 90000)
+                    )
+
+                    const rawData = await Promise.race([
+                        fetchMarketData(pair, '1m', limit, fetchStart, endTime),
+                        timeoutPromise
+                    ]) as any[]
+
+                    if (!rawData || rawData.length === 0) {
+                        toast.error("No market data found")
+                        setIsLoading(false)
+                        loadingRef.current = false
+                        isTimeframeSwitchingRef.current = false
+                        return
+                    }
+
+                    console.log(`[Backtest] ✅ Raw 1m data: ${rawData.length} candles`)
+
+                    // Clean: sort, dedupe, validate
+                    const cleaned = rawData
+                        .filter((c: any) =>
+                            c.time > 0 && !isNaN(c.open) && c.open > 0 &&
+                            !isNaN(c.high) && c.high > 0 && !isNaN(c.low) && c.low > 0 &&
+                            !isNaN(c.close) && c.close > 0 &&
+                            c.high >= c.low && c.high >= c.open && c.high >= c.close &&
+                            c.low <= c.open && c.low <= c.close
+                        )
+                        .sort((a: any, b: any) => a.time - b.time)
+
+                    const seen = new Set<number>()
+                    baseData1m = cleaned.filter((c: any) => {
+                        if (seen.has(c.time)) return false
+                        seen.add(c.time)
+                        return true
+                    }).map((c: any) => ({
+                        time: c.time, open: c.open, high: c.high,
+                        low: c.low, close: c.close, volume: c.volume || 0
+                    })) as Candle[]
+
+                    // ═══════════════════════════════════════════════════════════
+                    // FIX CHEAP-LOOKING CANDLES: Remove zero-range dead candles
+                    // These are market gaps where O=H=L=C with zero volume
+                    // They look like flat lines on the chart — ugly!
+                    // ═══════════════════════════════════════════════════════════
+                    const beforeFilter = baseData1m.length
+                    baseData1m = baseData1m.filter((c: Candle) => {
+                        // Remove flat candles with no volume (market closed/no ticks)
+                        if (c.open === c.high && c.high === c.low && c.low === c.close && (c.volume === 0 || !c.volume)) {
+                            return false
+                        }
+                        return true
+                    })
+                    if (baseData1m.length < beforeFilter) {
+                        console.log(`[Backtest] 🧹 Removed ${beforeFilter - baseData1m.length} zero-range candles`)
+                    }
+
+                    // CACHE for instant switching
+                    prefetchedDataRef.current = baseData1m
+                    setPrefetchStatus('done')
+
+                    console.log(`[Backtest] ✅ Cached ${baseData1m.length} x 1m candles`)
+                    console.log(`  First: ${new Date(baseData1m[0].time * 1000).toISOString()}`)
+                    console.log(`  Last: ${new Date(baseData1m[baseData1m.length - 1].time * 1000).toISOString()}`)
+                    console.log(`  ⚡ All timeframe switches will be INSTANT from now!`)
+
+                } catch (error: any) {
+                    console.error("[Backtest] Data Load Failed", error)
+                    toast.error(error.message || "Failed to load chart data")
                     setIsLoading(false)
+                    loadingRef.current = false
+                    isTimeframeSwitchingRef.current = false
                     return
                 }
-
-                // Calculate new index
-                let newIndex = 0
-
-                if (currentTime) {
-                    // Case 1: Switching timeframe - maintain current replay time
-                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= currentTime!)
-                    newIndex = foundIndex !== -1 ? foundIndex : data.length - 1
-                } else if (lastReplayTime) {
-                    // Case 2: Resuming session - go to last saved time
-                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= lastReplayTime)
-                    newIndex = foundIndex !== -1 ? foundIndex : data.length - 1
-                } else if (startTime) {
-                    // Case 3: New session with start date - find index of start date
-                    // Convert startTime (ms) to seconds for comparison
-                    const startTimeSec = startTime / 1000
-                    const foundIndex = data.findIndex((c: any) => (c.time as number) >= startTimeSec)
-                    newIndex = foundIndex !== -1 ? foundIndex : 0
-                } else {
-                    // Case 4: No specific start - start from middle
-                    newIndex = Math.floor(data.length / 2)
-                }
-
-                // Batch updates
-                setFullData(data)
-                setCurrentIndex(newIndex)
-                setVisibleData(data.slice(0, newIndex + 1))
-
-            } catch (error) {
-                console.error("Failed to fetch data", error)
-                toast.error("Failed to load chart data")
-            } finally {
-                if (isMounted) setIsLoading(false)
+            } else {
+                console.log(`[Backtest] ⚡ Using cached 1m data (${baseData1m.length} candles)`)
             }
+
+            // ═══════════════════════════════════════════════════════════════
+            // STEP 2: Aggregate 1m → display interval (instant, client-side)
+            // ═══════════════════════════════════════════════════════════════
+            let data: Candle[]
+            if (interval === '1m') {
+                data = baseData1m
+            } else {
+                const t0 = performance.now()
+                data = aggregateCandles(baseData1m, interval as any)
+                const elapsed = (performance.now() - t0).toFixed(1)
+                console.log(`[Backtest] ⚡ Aggregated ${baseData1m.length} x 1m → ${data.length} x ${interval} in ${elapsed}ms`)
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // STEP 3: Find correct replay position
+            // ═══════════════════════════════════════════════════════════════
+            const targetTime = intendedTimeRef.current || startTime
+            let newIndex = 0
+            if (targetTime && data.length > 0) {
+                const tSec = targetTime > 10000000000 ? targetTime / 1000 : targetTime
+                for (let i = data.length - 1; i >= 0; i--) {
+                    if (data[i].time <= tSec) {
+                        newIndex = i
+                        break
+                    }
+                }
+            }
+
+            // Ensure minimum visible candles
+            const minVisible = 50
+            if (newIndex < minVisible && data.length > minVisible) {
+                newIndex = minVisible - 1
+            } else if (newIndex < minVisible && data.length <= minVisible) {
+                newIndex = data.length - 1
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // STEP 4: Update state — triggers chart render
+            // ═══════════════════════════════════════════════════════════════
+            fullDataRef.current = data
+            setFullData(data)
+            setCurrentIndex(newIndex)
+            loadedParamsRef.current = { pair, interval }
+
+            console.log('════════════════════════════════════════════════════')
+            console.log(`[Backtest] ✅ READY — ${data.length} x ${interval} candles, index ${newIndex}`)
+            console.log(`  Position: ${new Date(data[newIndex].time * 1000).toISOString()}`)
+            console.log(`  Using cached 1m: ${!!prefetchedDataRef.current}`)
+            console.log('════════════════════════════════════════════════════')
+
+            if (isMounted) {
+                setIsLoading(false)
+            }
+            loadingRef.current = false
+            isTimeframeSwitchingRef.current = false
         }
 
         loadData()
+        return () => {
+            isMounted = false
+            loadingRef.current = false
+        }
+    }, [pair, interval])
 
-        return () => { isMounted = false }
-    }, [pair, interval]) // Removed initialSession to prevent loops
+
 
     // Session Persistence
     const saveSession = useCallback(async () => {
-        if (!sessionId || fullData.length === 0) return
-
-        const currentTime = fullData[currentIndex]?.time as number
-        if (!currentTime) return
+        if (!sessionId || fullDataRef.current.length === 0) return
+        const currentCandle = fullDataRef.current[currentIndex]
+        if (!currentCandle) return
 
         try {
             await updateBacktestSession(sessionId, {
-                last_replay_time: currentTime,
+                last_replay_time: currentCandle.time,
                 current_balance: balance
             })
-        } catch (error) {
-            console.error('Failed to save session state', error)
-        }
-    }, [sessionId, fullData, currentIndex, balance])
+        } catch (error) { console.error(error) }
+    }, [sessionId, currentIndex, balance])
 
-    // Auto-save every 10 seconds
-    // Auto-save every 10 seconds
+    // Auto-save
     useEffect(() => {
         const timer = window.setInterval(saveSession, 10000)
         return () => window.clearInterval(timer)
     }, [saveSession])
 
-    // Save on pause
-    useEffect(() => {
-        if (!isPlaying) {
-            saveSession()
-        }
-    }, [isPlaying, saveSession])
-
-    // Derived Data for HTF
-    const data1H = useMemo(() => aggregateCandles(visibleData, '1h'), [visibleData])
-    const data4H = useMemo(() => aggregateCandles(visibleData, '4h'), [visibleData])
-
-    // Calculate Price Lines
-    const priceLines = useMemo(() => {
-        const lines: PriceLineConfig[] = []
-
-        // Show Trades
-        trades.forEach(trade => {
-            if (trade.status === 'CLOSED') return
-            lines.push({
-                price: trade.entryPrice,
-                color: trade.side === 'LONG' ? '#10b981' : '#ef4444',
-                title: `${trade.side} ENTRY`,
-                lineStyle: 1
-            })
-            if (trade.stopLoss) {
-                lines.push({
-                    price: trade.stopLoss,
-                    color: '#ef4444',
-                    title: 'SL',
-                    lineStyle: 2
-                })
-            }
-            if (trade.takeProfit) {
-                lines.push({
-                    price: trade.takeProfit,
-                    color: '#3b82f6',
-                    title: 'TP',
-                    lineStyle: 2
-                })
-            }
-        })
-
-        // Show Pending Orders
-        orders.filter(o => o.status === 'PENDING').forEach(order => {
-            const price = order.limitPrice || order.stopPrice || 0
-            lines.push({
-                price: price,
-                color: order.side === 'LONG' ? '#10b981' : '#ef4444',
-                title: `${order.type} ${order.side}`,
-                lineStyle: 2
-            })
-            if (order.stopLoss) {
-                lines.push({
-                    price: order.stopLoss,
-                    color: '#ef4444',
-                    title: 'SL',
-                    lineStyle: 2
-                })
-            }
-            if (order.takeProfit) {
-                lines.push({
-                    price: order.takeProfit,
-                    color: '#3b82f6',
-                    title: 'TP',
-                    lineStyle: 2
-                })
-            }
-        })
-
-        return lines
-    }, [trades, orders])
-
     // Replay Logic
     const stepForward = useCallback(() => {
         setCurrentIndex(prev => {
-            if (prev >= fullData.length - 1) {
+            if (prev >= fullDataRef.current.length - 1) {
                 setIsPlaying(false)
                 return prev
             }
             return prev + 1
         })
-    }, [fullData.length])
+    }, [])
 
-    // Sync Engine with Candle Data
+    // Sync Engine & UI
     useEffect(() => {
-        if (fullData.length > 0 && engineRef.current) {
-            const currentCandle = fullData[currentIndex]
+        if (fullDataRef.current.length > 0 && engineRef.current) {
+            // Safe bounds
+            const idx = Math.min(currentIndex, fullDataRef.current.length - 1)
+            const currentCandle = fullDataRef.current[idx]
 
-            setVisibleData(fullData.slice(0, currentIndex + 1))
+            // Safety check for valid candle
+            if (!currentCandle || typeof currentCandle.close !== 'number') {
+                console.warn('[Backtest] Invalid candle at index', idx)
+                return
+            }
 
-            // Process Candle in Engine
-            engineRef.current.processCandle(currentCandle)
+            try {
+                // Process Candle in Engine
+                engineRef.current.processCandle(currentCandle)
 
-            // Update Local State from Engine
-            const stats = engineRef.current.getStats()
-            setBalance(stats.balance)
-            setEquity(stats.equity)
-            setMaxDrawdown(stats.maxDrawdown)
-            setTrades([...engineRef.current.getTrades()])
-            setOrders([...engineRef.current.getOrders()])
+                // Update Stats
+                const stats = engineRef.current.getStats()
+                setBalance(stats.balance)
+                setEquity(stats.equity)
+                setTrades([...engineRef.current.getTrades()])
+                setOrders([...engineRef.current.getOrders()])
+            } catch (err) {
+                console.error('[Backtest] Error processing candle:', err)
+            }
         }
-    }, [currentIndex, fullData])
+    }, [currentIndex])
 
-    // Playback Timer
+    // Timer
+    const timerRef = useRef<number | null>(null)
     useEffect(() => {
         if (isPlaying) {
             timerRef.current = window.setInterval(stepForward, speed)
         } else {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current)
-        }
+        return () => { if (timerRef.current) clearInterval(timerRef.current) }
     }, [isPlaying, speed, stepForward])
 
-    const handlePlaceOrder = (
-        side: 'LONG' | 'SHORT',
-        size: number,
-        sl: number,
-        tp: number,
-        orderType: 'MARKET' | 'LIMIT' | 'STOP' = 'MARKET',
-        limitPrice?: number
-    ) => {
+    const handlePlaceOrder = (side: 'LONG' | 'SHORT', size: number, sl: number, tp: number, type: 'MARKET' | 'LIMIT' | 'STOP' = 'MARKET', price?: number) => {
         if (!engineRef.current) return
-
         engineRef.current.placeOrder({
             sessionId: sessionId || 'temp',
             symbol: pair,
             side,
-            type: orderType,
+            type,
             quantity: size,
-            limitPrice: orderType === 'LIMIT' ? limitPrice : undefined,
-            stopPrice: orderType === 'STOP' ? limitPrice : undefined,
+            limitPrice: type === 'LIMIT' ? price : undefined,
+            stopPrice: type === 'STOP' ? price : undefined,
             stopLoss: sl || undefined,
             takeProfit: tp || undefined
         })
-
-        // Force update state immediately
         const stats = engineRef.current.getStats()
         setBalance(stats.balance)
-        setEquity(stats.equity)
-        setTrades([...engineRef.current.getTrades()])
         setOrders([...engineRef.current.getOrders()])
-
-        toast.success(`${orderType} Order Placed`)
+        toast.success(`${type} Order Placed`)
         if (showOrderPanel) setShowOrderPanel(false)
     }
 
-    const handleQuickOrder = (side: 'LONG' | 'SHORT') => {
-        handlePlaceOrder(side, quantity, 0, 0, 'MARKET')
-    }
-
-    const handleContextAction = (action: string, payload?: any) => {
-        if (action === 'reset') {
-            // Logic to reset view if needed
-        } else if (action === 'trade') {
-            if (payload) {
-                setShowOrderPanel(true)
-            }
-        } else if (action === 'remove_drawings') {
-            if (chartComponentRef.current) {
-                chartComponentRef.current.clearDrawings()
-                toast.success('All drawings removed')
-            }
-        } else if (action === 'settings') {
-            // Open settings
-        }
-    }
-
-    // Calculate PnL (Unrealized)
     const unrealizedPnl = equity - balance
-    const realizedPnl = balance - (initialSession?.initial_balance || 100000) // Approx
-    const currentPrice = visibleData.length > 0 ? visibleData[visibleData.length - 1].close : 0
+    const realizedPnl = balance - (initialSession?.initial_balance || 100000)
 
-    const [chartType, setChartType] = useState('candle_solid')
-    const [isMagnet, setIsMagnet] = useState(false)
-    const [isLocked, setIsLocked] = useState(false)
-    const [areDrawingsHidden, setAreDrawingsHidden] = useState(false)
-    const chartComponentRef = useRef<any>(null)
+    // ═══════════════════════════════════════════════════════════════
+    // PROGRESSIVE HISTORY LOADING (User Request)
+    // ═══════════════════════════════════════════════════════════════
+    useEffect(() => {
+        if (isLoading || isTimeframeSwitchingRef.current) return
 
-    const handleAddIndicator = (name: string) => {
-        if (chartComponentRef.current) {
-            chartComponentRef.current.createIndicator(name)
+        const checkAndLoadMore = async () => {
+            // Soft limit: ~250k candles of 1m data (approx 6 months)
+            // If we have less than this, try to fetch more history
+            if (!prefetchedDataRef.current || prefetchedDataRef.current.length >= 250000) return
+            if (isFetchingHistoryRef.current) return
+            if (historyLoadCountRef.current >= 5) return // Max 5 chunks to avoid endless loop
+
+            isFetchingHistoryRef.current = true
+            try {
+                const current1m = prefetchedDataRef.current
+                const oldestTime = current1m[0].time * 1000 // ms
+
+                // Fetch chunk: 45 days back
+                const chunkDuration = 45 * 24 * 60 * 60 * 1000
+                const fetchEnd = oldestTime
+                const fetchStart = oldestTime - chunkDuration
+
+                console.log(`[Backtest] 🕰️ Fetching history chunk ${historyLoadCountRef.current + 1}...`)
+                console.log(`   End: ${new Date(fetchEnd).toISOString()}`)
+
+                const rawChunk = await fetchMarketData(pair, '1m', 60000, fetchStart, fetchEnd)
+
+                if (rawChunk && rawChunk.length > 0) {
+                    // Clean & Filter
+                    const cleaned = rawChunk
+                        .filter((c: any) =>
+                            c.time > 0 && !isNaN(c.open) && c.volume > 0 &&
+                            !(c.open === c.high && c.high === c.low && c.low === c.close && c.volume === 0)
+                        )
+                        .sort((a: any, b: any) => a.time - b.time)
+
+                    // Filter duplicates against existing start
+                    const firstExistingTime = current1m[0].time
+                    const finalChunk = cleaned
+                        .filter((c: any) => c.time < firstExistingTime)
+                        .map((c: any) => ({
+                            time: c.time,
+                            open: c.open,
+                            high: c.high,
+                            low: c.low,
+                            close: c.close,
+                            volume: Number(c.volume || 0)
+                        })) as Candle[]
+
+                    if (finalChunk.length > 0) {
+                        console.log(`[Backtest] 🕰️ Loaded ${finalChunk.length} older candles`)
+                        // 1. Update Global Cache (Source of Truth)
+                        const newData1m = [...finalChunk, ...current1m]
+                        prefetchedDataRef.current = newData1m
+
+                        // 2. Aggregate for current view
+                        const aggChunk = interval === '1m' ? finalChunk : aggregateCandles(finalChunk as Candle[], interval as Timeframe)
+
+                        // 3. Atomically Update State
+                        setFullData(prev => [...(aggChunk as Candle[]), ...prev])
+                        setCurrentIndex(prev => prev + aggChunk.length)
+
+                        // 4. Feedback
+                        toast.success(`Loaded ${finalChunk.length} historical candles`)
+                        historyLoadCountRef.current++
+
+                        // Schedule next chunk
+                        setTimeout(checkAndLoadMore, 2000)
+                    } else {
+                        console.log('[Backtest] 🕰️ No new history found in chunk period')
+                    }
+                }
+            } catch (err) {
+                console.error('[Backtest] History fetch failed', err)
+            } finally {
+                isFetchingHistoryRef.current = false
+            }
         }
-    }
+
+        // Start checking 2 seconds after initial load
+        const timer = setTimeout(checkAndLoadMore, 2000)
+        return () => clearTimeout(timer)
+    }, [isLoading, interval, pair]) // Re-run if interval changes (reset check) or pair changes
 
     return (
         <div className="flex flex-col h-screen bg-[#000000] text-[#d1d4dc] overflow-hidden font-sans select-none">
-            {/* Top Navigation Bar */}
-            <BacktestTopBar
-                sessionName={initialSession?.name || 'Untitled Session'}
-                currentIndex={currentIndex}
-                totalCandles={fullData.length}
-                isPlaying={isPlaying}
-                speed={speed}
-                onPlayPause={() => setIsPlaying(!isPlaying)}
-                onStepBack={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                onStepForward={stepForward}
-                onSeek={setCurrentIndex}
-                onSpeedChange={setSpeed}
-                onPlaceOrder={() => setShowOrderPanel(true)}
-            />
+            {/* CLEAN UI: No Top Bar or Side Toolbar */}
 
-            {/* Secondary Toolbar (Chart Controls) */}
-            <div className="h-[38px] bg-[#131722] border-b border-[#2a2e39] flex items-center px-2 gap-1 shrink-0">
-                <div className="flex items-center border-r border-[#2a2e39] pr-2 mr-2">
-                    <Button variant="ghost" className="h-8 px-2 text-white font-bold hover:bg-[#2a2e39] gap-2 text-sm">
-                        {pair}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d1d4dc] hover:bg-[#2a2e39]">
-                        <Plus className="w-4 h-4" />
-                    </Button>
-                </div>
-
-                <TimeframeSelector value={interval} onValueChange={setInterval} />
-
-                <div className="w-px h-4 bg-[#2a2e39] mx-1" />
-
-                <Button variant="ghost" className="h-8 px-2 text-[#d1d4dc] hover:bg-[#2a2e39] text-sm gap-1">
-                    <BarChart2 className="w-4 h-4" /> Indicators
-                </Button>
-            </div>
-
-            {/* Main Workspace */}
+            {/* CHART AREA - Full Height/Width */}
             <div className="flex flex-1 min-h-0 relative">
-                {/* Left Drawing Toolbar */}
-                <div className="w-[52px] border-r border-[#2a2e39] bg-[#131722] flex flex-col items-center py-2 shrink-0 z-20">
-                    <BacktestToolbar
-                        activeTool={activeTool}
-                        onToolSelect={setActiveTool}
-                        isMagnet={isMagnet}
-                        onToggleMagnet={() => setIsMagnet(!isMagnet)}
-                        isLocked={isLocked}
-                        onToggleLock={() => setIsLocked(!isLocked)}
-                        areDrawingsHidden={areDrawingsHidden}
-                        onToggleHide={() => setAreDrawingsHidden(!areDrawingsHidden)}
-                        onRemoveAll={() => {
-                            if (chartComponentRef.current) {
-                                chartComponentRef.current.clearDrawings()
-                                toast.success('All drawings removed')
-                            }
-                        }}
-                    />
-                </div>
 
-                {/* Chart Area */}
                 <div className="flex-1 relative min-w-0 bg-[#000000]">
                     {isLoading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#000000]/50 backdrop-blur-sm">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2962ff]" />
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#000000]/90 backdrop-blur-sm">
+                            <LoadingTips />
                         </div>
                     )}
 
-                    <SmartChart
-                        ref={chartComponentRef}
-                        data={visibleData}
-                        activeTool={activeTool}
-                        onDrawingComplete={() => setActiveTool(null)}
-                        chartType={chartType}
-                        isMagnet={isMagnet}
-                        isLocked={isLocked}
-                        areDrawingsHidden={areDrawingsHidden}
-                        priceLines={priceLines}
-                        timezone={timezone}
-                        onContextMenu={setContextMenu}
+                    {/* BACKTEST TV CHART */}
+                    <BacktestTVChart
+                        key="backtest-chart-stable" // Prevent unmounting on interval change
+                        // FIX: Always show enough candles for proper chart context
+                        // Previously: slice(0, currentIndex+1) could show only 1 candle when currentIndex=0
+                        // Now: Show ALL candles up to currentIndex, ensuring minimum context
+                        data={useMemo(() => {
+                            if (fullData.length === 0) return []
+                            // Always include at least 100 candles of history before current position
+                            // This ensures the chart has proper context even if currentIndex is low
+                            const minHistoryCandles = 100
+                            const endIdx = currentIndex + 1
+                            const startIdx = Math.max(0, endIdx - minHistoryCandles)
+
+                            // If we have very little data overall, show everything up to currentIndex
+                            const sliced = fullData.slice(0, endIdx)
+
+                            // DEBUG: Log what we're showing
+                            if (sliced.length <= 1) {
+                                console.warn(`[BacktestChart] Only ${sliced.length} candle(s) to display!`)
+                                console.warn(`  fullData.length: ${fullData.length}`)
+                                console.warn(`  currentIndex: ${currentIndex}`)
+                                // If we only have 1 candle, show ALL available data for debugging
+                                if (fullData.length > 1) {
+                                    console.warn(`  Showing ALL ${fullData.length} candles instead!`)
+                                    return fullData
+                                }
+                            }
+
+                            return sliced.length > 0 ? sliced : fullData.length > 0 ? fullData : []
+                        }, [fullData, currentIndex])}
+                        interval={interval}
+                        symbol={pair} // Use actual trading pair name
+                        orders={orders}
+                        trades={trades}
+
+                        // We disconnect built-in buttons since we have the floating widget now
+                        // But we keep handlers for logical completeness
+                        isPlaying={isPlaying}
+                        onPlayPause={() => {
+                            // Prevent play if engine or data isn't ready
+                            if (!engineRef.current || fullDataRef.current.length === 0) {
+                                console.warn('[Backtest] Cannot play: engine or data not ready')
+                                return
+                            }
+                            setIsPlaying(!isPlaying)
+                        }}
+                        onStepForward={stepForward}
+                        onPlaceOrder={() => setShowOrderPanel(true)}
+                        onReset={() => setCurrentIndex(0)} // This might need to reset to 'startIndex' not 0? 
+                        onIntervalChange={setInterval}
+                        sessionStartTime={(() => {
+                            const st = initialSession?.start_date ? new Date(initialSession.start_date).getTime() : undefined
+                            console.log('📅 [ChartReplayEngine] Passing sessionStartTime to chart:', st, st ? new Date(st).toISOString() : 'undefined')
+                            return st
+                        })()}
+                        currentTime={fullData[currentIndex]?.time < 10000000000 ? fullData[currentIndex]?.time * 1000 : fullData[currentIndex]?.time}
                     />
 
-                    {contextMenu && (
-                        <ChartContextMenu
-                            x={contextMenu.x}
-                            y={contextMenu.y}
-                            price={contextMenu.price}
-                            pair={pair}
-                            onClose={() => setContextMenu(null)}
-                            onAction={handleContextAction}
-                        />
-                    )}
+                    {/* FLOAT CONTROLS */}
+                    <BacktestControls
+                        isPlaying={isPlaying}
+                        onPlayPause={() => {
+                            if (!engineRef.current || fullDataRef.current.length === 0) {
+                                console.warn('[Backtest] Cannot play: engine or data not ready')
+                                return
+                            }
+                            setIsPlaying(!isPlaying)
+                        }}
+                        onStepForward={stepForward}
+                        onRewind={() => {
+                            // Find original start index? For now go to 0 or session start.
+                            // Let's reset to the calculated 'start index' from loadData?
+                            // For safety, just 0 for now.
+                            setCurrentIndex(0)
+                            setIsPlaying(false)
+                        }}
+                        onOrderClick={() => setShowOrderPanel(true)}
+                        speed={speed}
+                        onSpeedChange={setSpeed}
+                        currentDate={fullData[currentIndex]?.time < 10000000000 ? fullData[currentIndex]?.time * 1000 : fullData[currentIndex]?.time}
+                    />
 
                     {/* Prop Firm Widget */}
                     {initialSession?.session_type === 'PROP_FIRM' && (
@@ -605,7 +736,6 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                 </div>
             </div>
 
-            {/* Bottom Trading Panel */}
             <BacktestBottomBar
                 balance={balance}
                 equity={equity}
@@ -613,18 +743,16 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                 unrealizedPnl={unrealizedPnl}
                 quantity={quantity}
                 onQuantityChange={setQuantity}
-                onBuy={() => handleQuickOrder('LONG')}
-                onSell={() => handleQuickOrder('SHORT')}
+                onBuy={() => handlePlaceOrder('LONG', quantity, 0, 0, 'MARKET')}
+                onSell={() => handlePlaceOrder('SHORT', quantity, 0, 0, 'MARKET')}
                 onAnalytics={() => { }}
             />
 
             <Dialog open={showOrderPanel} onOpenChange={setShowOrderPanel}>
                 <DialogContent className="sm:max-w-[400px] bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc]">
-                    <DialogHeader>
-                        <DialogTitle>Place New Order</DialogTitle>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>Place Order</DialogTitle></DialogHeader>
                     <PlaceOrderDialog
-                        currentPrice={currentPrice}
+                        currentPrice={fullData.length > 0 ? fullData[currentIndex]?.close || fullData[fullData.length - 1].close : 0}
                         balance={balance}
                         onPlaceOrder={handlePlaceOrder}
                         onClose={() => setShowOrderPanel(false)}

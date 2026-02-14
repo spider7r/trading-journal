@@ -33,8 +33,8 @@ export function TimePerformanceChart({ trades }: TimePerformanceChartProps) {
 
     if (data.length === 0) {
         return (
-            <div className="flex h-[300px] items-center justify-center rounded-2xl border border-zinc-800/50 bg-zinc-900/50 p-6 backdrop-blur-sm">
-                <p className="text-zinc-500">No data available</p>
+            <div className="flex h-[300px] items-center justify-center rounded-2xl border border-white/5 bg-[#0A0A0A]/50 p-6 backdrop-blur-sm">
+                <p className="text-zinc-500 font-mono text-sm">No data available</p>
             </div>
         )
     }
@@ -45,19 +45,20 @@ export function TimePerformanceChart({ trades }: TimePerformanceChartProps) {
                 <BarChart data={data}>
                     <defs>
                         <linearGradient id="colorPnlWin" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#10b981" stopOpacity={0.8} />
-                            <stop offset="100%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="0%" stopColor="#00E676" stopOpacity={0.8} />
+                            <stop offset="100%" stopColor="#00E676" stopOpacity={0.3} />
                         </linearGradient>
                         <linearGradient id="colorPnlLoss" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8} />
                             <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
                         </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.5} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1F1F1F" vertical={false} opacity={0.5} />
                     <XAxis
                         dataKey="hour"
                         stroke="#52525b"
-                        fontSize={12}
+                        fontSize={10}
+                        fontFamily="var(--font-mono)"
                         tickFormatter={(value) => `${value}:00`}
                         tickLine={false}
                         axisLine={false}
@@ -65,23 +66,24 @@ export function TimePerformanceChart({ trades }: TimePerformanceChartProps) {
                     />
                     <YAxis
                         stroke="#52525b"
-                        fontSize={12}
+                        fontSize={10}
+                        fontFamily="var(--font-mono)"
                         tickFormatter={(value) => `$${value}`}
                         tickLine={false}
                         axisLine={false}
                         dx={-10}
                     />
                     <Tooltip
-                        cursor={{ fill: '#27272a', opacity: 0.4 }}
+                        cursor={{ fill: '#0A0A0A', opacity: 0.8 }}
                         contentStyle={{
-                            backgroundColor: 'rgba(24, 24, 27, 0.8)',
-                            borderColor: 'rgba(39, 39, 42, 0.5)',
-                            borderRadius: '16px',
+                            backgroundColor: 'rgba(10, 10, 10, 0.9)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderRadius: '12px',
                             backdropFilter: 'blur(12px)',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
                         }}
-                        itemStyle={{ color: '#e4e4e7' }}
-                        labelStyle={{ color: '#a1a1aa', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        itemStyle={{ color: '#e4e4e7', fontFamily: 'var(--font-mono)' }}
+                        labelStyle={{ color: '#a1a1aa', marginBottom: '8px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}
                         labelFormatter={(value) => `${value}:00 - ${value + 1}:00`}
                         formatter={(value: number) => [formatCurrency(value), 'P&L']}
                     />

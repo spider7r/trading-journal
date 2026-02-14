@@ -22,7 +22,7 @@ export function Preloader() {
                     initial={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="fixed inset-0 z-[10000] flex items-center justify-center bg-zinc-950"
+                    className="fixed inset-0 z-[10000] flex items-center justify-center bg-[#050505]"
                 >
                     <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
@@ -30,7 +30,7 @@ export function Preloader() {
                         transition={{ duration: 0.5, ease: "easeOut" }}
                         className="relative flex flex-col items-center gap-4"
                     >
-                        <div className="relative h-24 w-64 sm:h-32 sm:w-80 max-w-[90vw] overflow-hidden">
+                        <div className="relative h-24 w-64 sm:h-32 sm:w-80 max-w-[90vw] overflow-hidden drop-shadow-[0_0_25px_rgba(0,230,118,0.3)]">
                             <Image
                                 src="/logo.png"
                                 alt="The Tradal"

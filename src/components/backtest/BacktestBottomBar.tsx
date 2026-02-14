@@ -29,29 +29,44 @@ export function BacktestBottomBar({
 }: BacktestBottomBarProps) {
     return (
         <div className="h-16 bg-[#131722] border-t border-[#2a2e39] flex items-center justify-between px-4 shrink-0 shadow-[0_-1px_2px_rgba(0,0,0,0.1)] z-20">
-            {/* Left: Trading Controls */}
-            <div className="flex items-center gap-3">
-                <Button
-                    className="bg-[#089981] hover:bg-[#067a65] text-white font-bold w-24 h-9 shadow-lg shadow-emerald-900/20 transition-all"
-                    onClick={onBuy}
-                >
-                    Buy
-                </Button>
-                <Button
-                    className="bg-[#F23645] hover:bg-[#c92533] text-white font-bold w-24 h-9 shadow-lg shadow-red-900/20 transition-all"
-                    onClick={onSell}
-                >
-                    Sell
-                </Button>
-
-                <div className="flex items-center gap-2 bg-[#1E222D] rounded-md border border-[#2a2e39] px-3 h-9">
-                    <span className="text-xs text-[#B2B5BE] font-medium uppercase tracking-wider">Qty</span>
-                    <Input
-                        type="number"
-                        value={quantity}
-                        onChange={(e) => onQuantityChange(parseFloat(e.target.value))}
-                        className="h-6 w-20 bg-transparent border-none text-right text-white focus-visible:ring-0 p-0 font-mono"
+            {/* Left: Logo & Trading Controls */}
+            <div className="flex items-center gap-6">
+                {/* Logo */}
+                <div className="flex items-center pr-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src="/logo.png"
+                        alt="Logo"
+                        className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)]"
                     />
+                </div>
+
+                <div className="h-8 w-px bg-[#2a2e39]" />
+
+                {/* Controls */}
+                <div className="flex items-center gap-3">
+                    <Button
+                        className="bg-[#089981] hover:bg-[#067a65] text-white font-bold w-24 h-9 shadow-lg shadow-emerald-900/20 transition-all border border-emerald-600/20"
+                        onClick={onBuy}
+                    >
+                        Buy
+                    </Button>
+                    <Button
+                        className="bg-[#F23645] hover:bg-[#c92533] text-white font-bold w-24 h-9 shadow-lg shadow-red-900/20 transition-all border border-red-600/20"
+                        onClick={onSell}
+                    >
+                        Sell
+                    </Button>
+
+                    <div className="flex items-center gap-2 bg-[#1E222D] rounded-md border border-[#2a2e39] px-3 h-9 shadow-inner">
+                        <span className="text-[10px] text-[#B2B5BE] font-bold uppercase tracking-wider">Qty</span>
+                        <Input
+                            type="number"
+                            value={quantity}
+                            onChange={(e) => onQuantityChange(parseFloat(e.target.value))}
+                            className="h-6 w-16 bg-transparent border-none text-right text-white focus-visible:ring-0 p-0 font-mono font-medium"
+                        />
+                    </div>
                 </div>
             </div>
 

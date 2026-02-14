@@ -2,24 +2,98 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Live') {
+export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Combined' | 'Paper' = 'Live') {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) return { success: false, error: 'Unauthorized' }
 
-    // Fetch all trades
-    const { data: trades, error } = await supabase
+    let allTrades: any[] = []
+
+    // 1. Fetch from 'trades' table (Manual Logs + Live)
+    let tradesQuery = supabase
         .from('trades')
         .select('*')
         .eq('user_id', user.id)
-        .eq('mode', mode)
         .order('open_time', { ascending: true })
 
-    if (error) {
-        console.error('Error fetching analytics data:', error)
-        return { success: false, error: error.message }
+    // Filter 'trades' based on mode
+    if (mode === 'Live') {
+        tradesQuery = tradesQuery.eq('mode', 'Live')
+    } else if (mode === 'Backtest') {
+        tradesQuery = tradesQuery.eq('mode', 'Backtest')
+    } else if (mode === 'Paper') {
+        tradesQuery = tradesQuery.eq('mode', 'Paper')
     }
+    // If 'Combined', assume we want everything relevant? Or maybe just Live + Backtest?
+    // Usually 'Combined' means everything.
+
+    const { data: manualTrades, error: manualError } = await tradesQuery
+
+    if (manualError) {
+        console.error('Error fetching manual trades:', manualError)
+        return { success: false, error: manualError.message }
+    }
+
+    // Normalize Manual Trades
+    const normalizedManualTrades = (manualTrades || []).map(t => ({
+        ...t,
+        source: 'Manual',
+        type: t.mode // Live, Backtest, Paper
+    }))
+    allTrades = [...normalizedManualTrades]
+
+    // 2. Fetch from 'backtest_trades' table (Engine)
+    // Only if mode is 'Backtest' or 'Combined'
+    if (mode === 'Backtest' || mode === 'Combined') {
+        const { data: engineTrades, error: engineError } = await supabase
+            .from('backtest_trades')
+            .select('*')
+            //.eq('user_id', user.id) // backtest_trades should have user_id via session relation... wait, let's check schema/rls.
+            // Actually backtest_trades links to backtest_sessions.
+            // We need to join sessions to filter by user_id?
+            // Or maybe RLS handles it? RLS usually requires user_id on the table or a join.
+            // Assuming we added RLS on backtest_trades or it inherits.
+            // Let's assume for now we need to filter by session -> user_id.
+            .select(`
+                *,
+                backtest_sessions!inner(user_id)
+            `)
+            .eq('backtest_sessions.user_id', user.id)
+            .order('entry_date', { ascending: true })
+
+        if (engineError) {
+            console.error('Error fetching engine trades:', engineError)
+            return { success: false, error: engineError.message }
+        }
+
+        // Normalize Engine Trades to match 'trades' schema
+        const normalizedEngineTrades = (engineTrades || []).map(t => ({
+            id: t.id,
+            pair: t.pair || t.symbol, // Handle variance
+            direction: t.direction === 'LONG' ? 'Long' : t.direction === 'SHORT' ? 'Short' : t.direction,
+            pnl: t.pnl,
+            rr: 0, // Engine doesn't store RR explicitly yet, maybe calculate?
+            open_time: t.entry_date,
+            close_time: t.exit_date,
+            session: 'Backtest', // Default session for engine trades
+            mode: 'Backtest',
+            source: 'Engine',
+            type: 'Backtest'
+        }))
+
+        allTrades = [...allTrades, ...normalizedEngineTrades]
+    }
+
+    // Sort all trades by date
+    allTrades.sort((a, b) => new Date(a.open_time).getTime() - new Date(b.open_time).getTime())
+
+    // Filter for specific mode if it was 'Combined' (already handled by fetch logic, but strictly speaking)
+    // If mode was 'Live', we only fetched Manual-Live.
+    // If mode was 'Backtest', we fetched Manual-Backtest + Engine.
+    // If mode was 'Combined', we fetched All Manual + Engine.
+
+    const trades = allTrades
 
     // Process Equity Curve Data
     let cumulativePnl = 0
@@ -37,7 +111,8 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
         'London': { wins: 0, total: 0, pnl: 0 },
         'New York': { wins: 0, total: 0, pnl: 0 },
         'Asian': { wins: 0, total: 0, pnl: 0 },
-        'Other': { wins: 0, total: 0, pnl: 0 }
+        'Other': { wins: 0, total: 0, pnl: 0 },
+        'Backtest': { wins: 0, total: 0, pnl: 0 } // Add Backtest "session"
     }
 
     // Process Day of Week Data
@@ -62,13 +137,20 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
     let currentConsecutiveLosses = 0
     let maxConsecutiveLosses = 0
     let totalRR = 0
+    let countRR = 0
 
     trades.forEach(trade => {
         const pnl = trade.pnl || 0
         const rr = trade.rr || 0
 
         // Session
-        const session = trade.session || 'Other'
+        let session = trade.session || 'Other'
+        // Normalize session names
+        if (session.toLowerCase().includes('london')) session = 'London'
+        else if (session.toLowerCase().includes('new york')) session = 'New York'
+        else if (session.toLowerCase().includes('asian')) session = 'Asian'
+        else if (trade.source === 'Engine') session = 'Backtest'
+
         if (sessions[session as keyof typeof sessions]) {
             sessions[session as keyof typeof sessions].total++
             sessions[session as keyof typeof sessions].pnl += pnl
@@ -87,7 +169,7 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
         if (pnl > 0) dayStats[dayIndex].wins++
 
         // Direction
-        const direction = trade.direction === 'Long' ? 'Long' : 'Short'
+        const direction = trade.direction === 'Long' || trade.direction === 'LONG' ? 'Long' : 'Short'
         if (direction) {
             directionStats[direction].total++
             directionStats[direction].pnl += pnl
@@ -109,7 +191,10 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
             if (currentConsecutiveLosses > maxConsecutiveLosses) maxConsecutiveLosses = currentConsecutiveLosses
         }
 
-        totalRR += rr
+        if (rr > 0) {
+            totalRR += rr
+            countRR++
+        }
     })
 
     // Re-calculate drawdown properly using the equity curve
@@ -167,7 +252,7 @@ export async function getAnalyticsData(mode: 'Live' | 'Backtest' | 'Paper' = 'Li
         expectancy: Math.round(expectancy),
         maxConsecutiveWins,
         maxConsecutiveLosses,
-        avgRR: trades.length > 0 ? Number((totalRR / trades.length).toFixed(2)) : 0
+        avgRR: countRR > 0 ? Number((totalRR / countRR).toFixed(2)) : 0
     }
 
     return {

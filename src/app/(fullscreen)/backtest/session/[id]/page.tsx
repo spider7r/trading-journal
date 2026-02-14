@@ -13,9 +13,22 @@ export default async function SessionPage({ params }: PageProps) {
     // Verify session exists and belongs to user
     const { data: session, error } = await supabase
         .from('backtest_sessions')
-        .select('*')
+        .select('*, backtest_session_data(candle_data)')
         .eq('id', id)
         .single()
+
+    if (error || !session) {
+        notFound()
+    }
+
+    // Merge optimized data back into session object for compatibility
+    // @ts-ignore
+    if (session.backtest_session_data && session.backtest_session_data.length > 0) {
+        // @ts-ignore
+        session.candle_data = session.backtest_session_data[0].candle_data
+    }
+    // @ts-ignore
+    if (session.backtest_session_data) delete session.backtest_session_data
 
     if (error || !session) {
         notFound()

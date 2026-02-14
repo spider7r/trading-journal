@@ -19,6 +19,7 @@ export async function getStrategiesList() {
 }
 
 import { fetchHistoricalData } from '@/lib/data-service'
+import { AssetCategory } from '@/lib/assets'
 
 export async function createBacktestSession(formData: {
     name: string
@@ -30,6 +31,8 @@ export async function createBacktestSession(formData: {
     startDate?: string
     endDate?: string
     timezone?: string
+    timezone?: string
+    category?: AssetCategory
     challengeRules?: any // Using any for now to avoid strict type issues, ideally define interface
 }) {
     const supabase = await createClient()
@@ -64,7 +67,7 @@ export async function createBacktestSession(formData: {
         }
 
         console.log(`Fetching ${range} candles for ${symbol}...`)
-        candleData = await fetchHistoricalData(symbol, timeframe, range)
+        candleData = await fetchHistoricalData(symbol, timeframe, range, undefined, formData.category)
         console.log(`Fetched ${candleData.length} candles`)
 
     } catch (err) {
@@ -156,27 +159,23 @@ export async function saveBacktestTrade(tradeData: {
     }
 }
 
-export async function fetchMarketData(pair: string, interval: string, limit: number = 1000, startTime?: number, endTime?: number) {
+export async function fetchMarketData(
+    pair: string,
+    interval: string,
+    limit: number = 1000,
+    startTime?: number,
+    endTime?: number,
+    category?: AssetCategory
+) {
     console.log(`Fetching market data for ${pair} ${interval} (Limit: ${limit})`)
 
-    // Map intervals to TradingView format
-    // TradingView uses '1', '5', '15', '60', '240', 'D', 'W'
+    // Map intervals to TradingView format fallback (data-service handles specific maps for Dukascopy/Binance)
     const intervalMap: Record<string, string> = {
-        '1m': '1',
-        '5m': '5',
-        '15m': '15',
-        '1h': '60',
-        '4h': '240',
-        '1d': 'D',
-        '1w': 'W',
-        // Add fallbacks
-        'D': 'D',
-        'W': 'W'
+        '1m': '1', '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W'
     }
-
     const tvInterval = intervalMap[interval] || '60'
 
-    // Format symbol
+    // Format symbol for TradingView fallback
     let symbol = pair
     if (!symbol.includes(':')) {
         if (symbol.includes('USDT')) symbol = `BINANCE:${symbol}`
@@ -184,35 +183,15 @@ export async function fetchMarketData(pair: string, interval: string, limit: num
     }
 
     try {
-        // Calculate range (TradingView API takes 'range' as number of candles)
-        // If startTime is provided, we might need to fetch enough candles to cover it.
-        // But fetchHistoricalData takes 'range' (count).
-        // If we want specific dates, we might need to adjust the library or just fetch a large buffer.
-        // For now, let's use the limit as range.
+        // Calculate range or use limit. 
+        // fetchHistoricalData in data-service handles routing to Dukascopy/Binance.
+        const data = await fetchHistoricalData(symbol, tvInterval, limit, endTime, category)
 
-        let range = limit
-
-        // If startTime is provided, try to estimate range needed
-        if (startTime && !endTime) {
-            // This is tricky with just 'range'. 
-            // Ideally we'd pass start/end to the service if supported.
-            // The current service only supports 'range'.
-            // Let's just fetch a large amount if start time is old.
-            range = Math.max(limit, 2000)
-        }
-
-        const data = await fetchHistoricalData(symbol, tvInterval, range)
-
-        // Filter by time if needed (since we fetched by count)
-        let filteredData = data
+        // Filter start time if needed
         if (startTime) {
-            filteredData = filteredData.filter((c: any) => c.time >= startTime / 1000)
+            return data.filter((c: any) => c.time * 1000 >= startTime)
         }
-        if (endTime) {
-            filteredData = filteredData.filter((c: any) => c.time <= endTime / 1000)
-        }
-
-        return filteredData
+        return data
 
     } catch (error) {
         console.error('Failed to fetch market data:', error)
