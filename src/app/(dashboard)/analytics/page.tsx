@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 
 export default function AnalyticsPage() {
-    const [mode, setMode] = useState<'Live' | 'Backtest' | 'Paper'>('Live')
+    const [mode, setMode] = useState<'Live' | 'Backtest' | 'Combined'>('Live')
     const [data, setData] = useState<{
         equityCurve: any[]
         sessionData: any[]
@@ -31,7 +31,7 @@ export default function AnalyticsPage() {
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true)
-            const res = await getAnalyticsData(mode)
+            const res = await getAnalyticsData(mode as any)
             if (res.success && res.data) {
                 setData(res.data)
             }
@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
 
                 {/* Mode Toggle */}
                 <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-                    {['Live', 'Backtest', 'Paper'].map((m) => (
+                    {['Live', 'Backtest', 'Combined'].map((m) => (
                         <button
                             key={m}
                             onClick={() => setMode(m as any)}
@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
                 <StatsWidget
                     title="Net P&L"
                     value={`$${(data?.equityCurve[data.equityCurve.length - 1]?.pnl || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                    icon={Wallet}
+                    iconName="wallet"
                     color="emerald"
                     trend={data?.equityCurve[data.equityCurve.length - 1]?.pnl >= 0 ? "Profit" : "Loss"}
                     trendUp={data?.equityCurve[data.equityCurve.length - 1]?.pnl >= 0}
@@ -93,7 +93,7 @@ export default function AnalyticsPage() {
                 <StatsWidget
                     title="Win Rate"
                     value={`${stats.winRate || 0}%`}
-                    icon={Trophy}
+                    iconName="trophy"
                     color="blue"
                     trend={`${stats.totalTrades || 0} Trades`}
                     trendUp={true}
@@ -101,7 +101,7 @@ export default function AnalyticsPage() {
                 <StatsWidget
                     title="Profit Factor"
                     value={stats.profitFactor?.toFixed(2) || "0.00"}
-                    icon={Scale}
+                    iconName="scale"
                     color="violet"
                     trend="Target > 1.5"
                     trendUp={(stats.profitFactor || 0) > 1.5}
@@ -109,7 +109,7 @@ export default function AnalyticsPage() {
                 <StatsWidget
                     title="Expectancy"
                     value={`$${(stats.expectancy || 0).toFixed(2)}`}
-                    icon={Target}
+                    iconName="target"
                     color="cyan"
                     trend="Per Trade"
                 />

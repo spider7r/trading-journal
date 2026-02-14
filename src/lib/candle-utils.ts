@@ -1,12 +1,14 @@
 import { Candle } from './binance'
 
-export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+export type Timeframe = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d'
 
 export function getSecondsInTimeframe(tf: Timeframe): number {
     switch (tf) {
         case '1m': return 60
+        case '3m': return 3 * 60
         case '5m': return 5 * 60
         case '15m': return 15 * 60
+        case '30m': return 30 * 60
         case '1h': return 60 * 60
         case '4h': return 4 * 60 * 60
         case '1d': return 24 * 60 * 60

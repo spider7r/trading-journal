@@ -9,6 +9,7 @@ import { CreateSessionDialog } from './CreateSessionDialog'
 import { getRecentBacktestSessions, deleteBacktestSession, getBacktestStats } from '@/app/(dashboard)/backtest/actions'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
 
 export default function BacktestDashboard() {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -22,6 +23,7 @@ export default function BacktestDashboard() {
         tradesBySymbol: []
     })
     const router = useRouter()
+    const { confirm } = useConfirm()
 
     useEffect(() => {
         loadData()
@@ -40,8 +42,16 @@ export default function BacktestDashboard() {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (confirm('Are you sure you want to delete this session?')) {
+        const confirmed = await confirm({
+            title: 'Delete Session?',
+            description: 'This will permanently delete this backtest session and all associated trades. This action cannot be undone.',
+            type: 'danger',
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+        })
+        if (confirmed) {
             await deleteBacktestSession(id)
+            toast.success('Session deleted successfully')
             loadData()
         }
     }

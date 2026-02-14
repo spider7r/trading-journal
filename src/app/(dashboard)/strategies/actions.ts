@@ -17,6 +17,10 @@ export async function getStrategies() {
                 id,
                 pnl,
                 outcome
+            ),
+            backtest_trades (
+                id,
+                pnl
             )
         `)
         .order('created_at', { ascending: false })
@@ -28,15 +32,33 @@ export async function getStrategies() {
 
     // Calculate metrics for each strategy
     const strategiesWithStats = strategies.map((strategy: any) => {
-        const trades = strategy.trades || []
-        const totalTrades = trades.length
-        const winningTrades = trades.filter((t: any) => t.pnl > 0).length
-        const winRate = totalTrades > 0 ? Math.round((winningTrades / totalTrades) * 100) : 0
-        const netPnl = trades.reduce((acc: number, t: any) => acc + (t.pnl || 0), 0)
+        // Live Trades Stats
+        const liveTrades = strategy.trades || []
+        const liveTotal = liveTrades.length
+        const liveWins = liveTrades.filter((t: any) => t.pnl > 0).length
+        const liveWinRate = liveTotal > 0 ? Math.round((liveWins / liveTotal) * 100) : 0
+        const liveNetPnl = liveTrades.reduce((acc: number, t: any) => acc + (t.pnl || 0), 0)
 
-        // Calculate Profit Factor
-        const grossProfit = trades.filter((t: any) => t.pnl > 0).reduce((acc: number, t: any) => acc + t.pnl, 0)
-        const grossLoss = Math.abs(trades.filter((t: any) => t.pnl < 0).reduce((acc: number, t: any) => acc + t.pnl, 0))
+        // Backtest Trades Stats
+        const backtestTrades = strategy.backtest_trades || []
+        const backtestTotal = backtestTrades.length
+        const backtestWins = backtestTrades.filter((t: any) => t.pnl > 0).length
+        const backtestWinRate = backtestTotal > 0 ? Math.round((backtestWins / backtestTotal) * 100) : 0
+        const backtestNetPnl = backtestTrades.reduce((acc: number, t: any) => acc + (t.pnl || 0), 0)
+
+        // Combined Stats (for general overview)
+        const totalTrades = liveTotal + backtestTotal
+        const totalWins = liveWins + backtestWins
+        const winRate = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0
+        const netPnl = liveNetPnl + backtestNetPnl
+
+        // Calculate Profit Factor (Live Only for now as 'Profit Factor' usually implies money risk)
+        // Or we can do combined if PnL is normalized, but often Backtest PnL is hypothetical large numbers.
+        // Let's stick to Live Profit Factor for the main stat, or combined if requested.
+        // For 'The Playbook', usually users want to see Live performance primarily, with backtest as validation.
+
+        const grossProfit = liveTrades.filter((t: any) => t.pnl > 0).reduce((acc: number, t: any) => acc + t.pnl, 0)
+        const grossLoss = Math.abs(liveTrades.filter((t: any) => t.pnl < 0).reduce((acc: number, t: any) => acc + t.pnl, 0))
         const profitFactor = grossLoss > 0 ? Number((grossProfit / grossLoss).toFixed(2)) : grossProfit > 0 ? 99.99 : 0
 
         return {
@@ -45,7 +67,18 @@ export async function getStrategies() {
                 totalTrades,
                 winRate,
                 netPnl,
-                profitFactor
+                profitFactor,
+                // Granular stats
+                live: {
+                    totalTrades: liveTotal,
+                    winRate: liveWinRate,
+                    netPnl: liveNetPnl
+                },
+                backtest: {
+                    totalTrades: backtestTotal,
+                    winRate: backtestWinRate,
+                    netPnl: backtestNetPnl
+                }
             }
         }
     })

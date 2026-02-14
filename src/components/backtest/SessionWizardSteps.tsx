@@ -1,9 +1,16 @@
 import { motion } from 'framer-motion'
-import { Zap, BarChart2, Calendar, Clock, Settings, CheckCircle, ChevronRight, Search } from 'lucide-react'
+import { useState } from 'react'
+
+import { Zap, BarChart2, Calendar as CalendarIcon, Clock, Settings, CheckCircle, ChevronRight, Search, Coins, Briefcase, LineChart, BadgeDollarSign, Globe, Check, Hammer } from 'lucide-react'
+import { ASSET_CATEGORIES } from '@/lib/assets'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { PropFirmSettings, ChallengeRules } from './PropFirmSettings'
 import { timezones } from '@/lib/timezones'
@@ -90,10 +97,6 @@ interface Step2Props {
 }
 
 export function Step2AssetTime({ asset, setAsset, startDate, setStartDate, endDate, setEndDate, timezone, setTimezone }: Step2Props) {
-    const assets = [
-        "EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSDT", "ETHUSDT",
-        "SOLUSDT", "XRPUSDT", "ADAUSDT", "BNBUSDT", "DOGEUSDT", "DOTUSDT"
-    ]
 
     return (
         <div className="space-y-4 sm:space-y-6">
@@ -103,56 +106,178 @@ export function Step2AssetTime({ asset, setAsset, startDate, setStartDate, endDa
             </div>
 
             <div className="space-y-3 sm:space-y-4">
+                {/* ASSET SELECTOR (TABS + GRID) */}
                 <div className="space-y-1.5 sm:space-y-2">
-                    <Label className="text-[#94A3B8] text-xs sm:text-sm">Asset Pair</Label>
-                    <Select value={asset} onValueChange={setAsset}>
-                        <SelectTrigger className="bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm">
-                            <SelectValue placeholder="Select asset..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0A0A0A] border-white/5 text-white">
-                            {assets.map(a => (
-                                <SelectItem key={a} value={a} className="text-xs sm:text-sm">{a}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Label className="text-[#94A3B8] text-xs sm:text-sm font-semibold uppercase tracking-wider mb-1 block">Asset Type</Label>
+                    <Tabs defaultValue="FOREX" className="w-full">
+                        <TabsList className="grid w-full grid-cols-5 bg-[#050505] p-1 h-12 sm:h-14 border border-white/5 rounded-xl">
+                            <TabsTrigger value="FOREX" className="flex flex-col gap-1 h-full text-[10px] sm:text-xs data-[state=active]:bg-[#00E676]/10 data-[state=active]:text-[#00E676] data-[state=active]:border border-[#00E676]/50 transition-all">
+                                <BadgeDollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-bold">FOREX</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="CRYPTO" className="flex flex-col gap-1 h-full text-[10px] sm:text-xs data-[state=active]:bg-[#00E676]/10 data-[state=active]:text-[#00E676] data-[state=active]:border border-[#00E676]/50 transition-all">
+                                <Coins className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-bold">CRYPTO</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="INDICES" className="flex flex-col gap-1 h-full text-[10px] sm:text-xs data-[state=active]:bg-[#00E676]/10 data-[state=active]:text-[#00E676] data-[state=active]:border border-[#00E676]/50 transition-all">
+                                <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-bold">INDICES</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="METALS" className="flex flex-col gap-1 h-full text-[10px] sm:text-xs data-[state=active]:bg-[#00E676]/10 data-[state=active]:text-[#00E676] data-[state=active]:border border-[#00E676]/50 transition-all">
+                                <Hammer className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-bold">METALS</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="STOCKS" className="flex flex-col gap-1 h-full text-[10px] sm:text-xs data-[state=active]:bg-[#00E676]/10 data-[state=active]:text-[#00E676] data-[state=active]:border border-[#00E676]/50 transition-all">
+                                <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="font-bold">STOCKS</span>
+                            </TabsTrigger>
+                        </TabsList>
+
+                        {Object.entries(ASSET_CATEGORIES).map(([category, items]) => (
+                            <TabsContent key={category} value={category} className="mt-4 outline-none">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                                    {items.map((item) => (
+                                        <button
+                                            key={item}
+                                            onClick={() => setAsset(item)}
+                                            className={cn(
+                                                "flex flex-col items-center justify-center p-3 rounded-lg border text-xs transition-all duration-200 hover:scale-[1.02]",
+                                                asset === item
+                                                    ? "bg-[#00E676] border-[#00E676] text-black font-bold shadow-[0_0_15px_rgba(0,230,118,0.3)]"
+                                                    : "bg-[#0A0A0A] border-white/5 text-[#94A3B8] hover:border-white/20 hover:text-white"
+                                            )}
+                                        >
+                                            <span className="font-semibold">{item}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </TabsContent>
+                        ))}
+                    </Tabs>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5 sm:space-y-2">
                         <Label className="text-[#94A3B8] text-xs sm:text-sm">Start Date</Label>
-                        <Input
-                            type="date"
-                            value={startDate}
-                            onChange={e => setStartDate(e.target.value)}
-                            className="bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm"
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm hover:bg-white/5 hover:text-white",
+                                        !startDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4 text-[#00E676]" />
+                                    {startDate ? format(new Date(startDate), "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#0A0A0A] border-white/10 text-white" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={startDate ? new Date(startDate) : undefined}
+                                    onSelect={(date) => date && setStartDate(format(date, "yyyy-MM-dd"))}
+                                    initialFocus
+                                    disabled={(date) => date > new Date() || date < new Date("2000-01-01")}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
                         <Label className="text-[#94A3B8] text-xs sm:text-sm">End Date</Label>
-                        <Input
-                            type="date"
-                            value={endDate}
-                            onChange={e => setEndDate(e.target.value)}
-                            className="bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm"
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm hover:bg-white/5 hover:text-white",
+                                        !endDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4 text-[#00E676]" />
+                                    {endDate ? format(new Date(endDate), "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 bg-[#0A0A0A] border-white/10 text-white" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={endDate ? new Date(endDate) : undefined}
+                                    onSelect={(date) => date && setEndDate(format(date, "yyyy-MM-dd"))}
+                                    initialFocus
+                                    disabled={(date) => date > new Date() || (startDate ? date < new Date(startDate) : false)}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
 
                 <div className="space-y-1.5 sm:space-y-2">
                     <Label className="text-[#94A3B8] text-xs sm:text-sm">Timezone</Label>
-                    <Select value={timezone} onValueChange={setTimezone}>
-                        <SelectTrigger className="bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm">
-                            <SelectValue placeholder="Select timezone..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0A0A0A] border-white/5 text-white max-h-[200px]">
-                            {timezones.map(tz => (
-                                <SelectItem key={tz.value} value={tz.value} className="text-xs sm:text-sm">{tz.label}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <TimezoneSelector value={timezone} onChange={setTimezone} />
                 </div>
             </div>
         </div>
+    )
+}
+
+function TimezoneSelector({ value, onChange }: { value: string, onChange: (v: string) => void }) {
+    const [open, setOpen] = useState(false)
+    const [search, setSearch] = useState("")
+
+    const filtered = timezones.filter(tz =>
+        tz.label.toLowerCase().includes(search.toLowerCase()) ||
+        tz.value.toLowerCase().includes(search.toLowerCase())
+    )
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between bg-[#050505] border-white/5 text-white h-10 sm:h-12 text-xs sm:text-sm hover:bg-white/5 hover:text-white"
+                >
+                    <span className="flex items-center gap-2 overflow-hidden">
+                        <Globe className="h-4 w-4 text-[#00E676] shrink-0" />
+                        <span className="truncate">{value ? timezones.find(t => t.value === value)?.label : "Select timezone..."}</span>
+                    </span>
+                    <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50 rotate-90" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0 bg-[#0A0A0A] border-white/10 text-white" align="start">
+                <div className="flex items-center border-b border-white/10 px-3">
+                    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50 text-white" />
+                    <input
+                        className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 text-white"
+                        placeholder="Search timezone..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                </div>
+                <div className="max-h-[200px] overflow-y-auto p-1 custom-scrollbar">
+                    {filtered.length === 0 && (
+                        <div className="py-6 text-center text-sm text-muted-foreground">No timezone found.</div>
+                    )}
+                    {filtered.map(tz => (
+                        <div
+                            key={tz.value}
+                            className={cn(
+                                "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs sm:text-sm outline-none transition-colors hover:bg-white/10 hover:text-white",
+                                value === tz.value ? "bg-[#00E676]/10 text-[#00E676]" : "text-white"
+                            )}
+                            onClick={() => {
+                                onChange(tz.value)
+                                setOpen(false)
+                            }}
+                        >
+                            <Check className={cn("mr-2 h-3 w-3 sm:h-4 sm:w-4", value === tz.value ? "opacity-100" : "opacity-0")} />
+                            {tz.label}
+                        </div>
+                    ))}
+                </div>
+            </PopoverContent>
+        </Popover>
     )
 }
 

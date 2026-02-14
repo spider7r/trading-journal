@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
 
 interface OrderEntryPanelProps {
     currentPrice: number
@@ -20,6 +21,7 @@ export function OrderEntryPanel({ currentPrice, onPlaceOrder, balance }: OrderEn
     const [riskPercent, setRiskPercent] = useState(1)
     const [stopLoss, setStopLoss] = useState<number>(0)
     const [takeProfit, setTakeProfit] = useState<number>(0)
+    const { alert } = useConfirm()
 
     const calculateSize = () => {
         if (useManualSize) return quantity
@@ -31,18 +33,24 @@ export function OrderEntryPanel({ currentPrice, onPlaceOrder, balance }: OrderEn
         return riskAmount / priceDiff
     }
 
-    const handleOrder = (type: 'LONG' | 'SHORT') => {
+    const handleOrder = async (type: 'LONG' | 'SHORT') => {
         const size = calculateSize()
 
         if (size <= 0) {
-            // Show error if size is invalid
+            // Show themed alert if size is invalid
             const entry = orderType === 'MARKET' ? currentPrice : limitPrice
             if (!useManualSize && (!stopLoss || stopLoss === entry)) {
-                // We can't use toast here directly as it's a component, but we can assume parent handles it or add a local error state.
-                // Better: just let the user know via a small text or border.
-                alert("Please set a valid Stop Loss to calculate position size based on risk.")
+                await alert({
+                    title: 'Invalid Stop Loss',
+                    description: 'Please set a valid Stop Loss to calculate position size based on risk.',
+                    type: 'warning'
+                })
             } else {
-                alert("Invalid position size.")
+                await alert({
+                    title: 'Invalid Position',
+                    description: 'The calculated position size is invalid. Please check your inputs.',
+                    type: 'warning'
+                })
             }
             return
         }

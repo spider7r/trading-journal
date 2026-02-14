@@ -13,22 +13,25 @@ import { cn } from '@/lib/utils'
 interface PlaceOrderDialogProps {
     currentPrice: number
     balance: number
+    strategies?: any[]
     onPlaceOrder: (
         side: 'LONG' | 'SHORT',
         size: number,
         sl: number,
         tp: number,
         orderType: 'MARKET' | 'LIMIT' | 'STOP',
-        limitPrice?: number
+        limitPrice?: number,
+        strategyId?: string
     ) => void
     onClose: () => void
 }
 
-export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose }: PlaceOrderDialogProps) {
+export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose, strategies = [] }: PlaceOrderDialogProps) {
     // Order State
     const [side, setSide] = useState<'LONG' | 'SHORT'>('LONG')
     const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT' | 'STOP'>('MARKET')
     const [limitPrice, setLimitPrice] = useState<string>(currentPrice.toString())
+    const [selectedStrategyId, setSelectedStrategyId] = useState<string>('')
 
     // Risk Management
     const [riskType, setRiskType] = useState<'PERCENT' | 'AMOUNT'>('PERCENT')
@@ -137,7 +140,8 @@ export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose 
             hasSL ? parseFloat(stopLoss) : 0,
             hasTP ? parseFloat(takeProfit) : 0,
             orderType,
-            orderType !== 'MARKET' ? parseFloat(limitPrice) : undefined
+            orderType !== 'MARKET' ? parseFloat(limitPrice) : undefined,
+            selectedStrategyId
         )
         onClose()
     }
@@ -166,6 +170,22 @@ export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose 
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <Label className="text-[#d1d4dc] text-xs font-medium">Risk Percentage</Label>
+                    <Select onValueChange={(v) => {
+                        if (v === 'CONSERVATIVE') { setRiskType('PERCENT'); setRiskValue('0.5') }
+                        if (v === 'MODERATE') { setRiskType('PERCENT'); setRiskValue('1') }
+                        if (v === 'AGGRESSIVE') { setRiskType('PERCENT'); setRiskValue('2') }
+                        if (v === 'SNIPER') { setRiskType('PERCENT'); setRiskValue('3') }
+                    }}>
+                        <SelectTrigger className="h-6 w-[110px] text-[10px] bg-[#2a2e39] border-none text-[#d1d4dc]">
+                            <SelectValue placeholder="Load Template" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc]">
+                            <SelectItem value="CONSERVATIVE">Conservative (0.5%)</SelectItem>
+                            <SelectItem value="MODERATE">Moderate (1.0%)</SelectItem>
+                            <SelectItem value="AGGRESSIVE">Aggressive (2.0%)</SelectItem>
+                            <SelectItem value="SNIPER">Sniper (3.0%)</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5">
                     {[0.3, 0.5, 0.7, 1, 2, 3].map((pct) => (
@@ -314,6 +334,22 @@ export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose 
                 )}
             </div>
 
+            {/* Strategy Selection */}
+            <div className="space-y-1.5">
+                <Label className="text-[#787b86] text-xs">Strategy</Label>
+                <Select value={selectedStrategyId} onValueChange={setSelectedStrategyId}>
+                    <SelectTrigger className="bg-[#1e222d] border-[#2a2e39] h-9 text-[#d1d4dc]">
+                        <SelectValue placeholder="Select Strategy" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc]">
+                        <SelectItem value="none">No Strategy</SelectItem>
+                        {strategies.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             {/* Actions */}
             <div className="flex items-center gap-3 pt-2">
                 <Button
@@ -325,8 +361,8 @@ export function PlaceOrderDialog({ currentPrice, balance, onPlaceOrder, onClose 
                 </Button>
                 <Button
                     className={`flex-[2] font-bold text-white shadow-lg transition-all ${side === 'LONG'
-                            ? 'bg-[#00bfa5] hover:bg-[#00897b] shadow-emerald-900/20'
-                            : 'bg-[#ef4444] hover:bg-[#d32f2f] shadow-red-900/20'
+                        ? 'bg-[#00bfa5] hover:bg-[#00897b] shadow-emerald-900/20'
+                        : 'bg-[#ef4444] hover:bg-[#d32f2f] shadow-red-900/20'
                         }`}
                     onClick={handleSubmit}
                 >

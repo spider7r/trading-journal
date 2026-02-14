@@ -16,13 +16,15 @@ import {
     Calendar,
     Target,
     History,
-    Trophy
+    Trophy,
+    Zap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'War Room', href: '/war-room', icon: Zap },
     { name: 'Journal', href: '/journal', icon: Calendar },
     { name: 'Notes', href: '/notes', icon: BookOpen },
     { name: 'Trades', href: '/trades', icon: LineChart },
@@ -63,7 +65,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                         animate={{ x: 0 }}
                         exit={{ x: '-100%' }}
                         transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                        className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-zinc-800 bg-zinc-900 p-6 shadow-xl lg:hidden"
+                        className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/5 bg-[#0A0A0A] p-6 shadow-xl lg:hidden"
                     >
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-x-3">
@@ -78,7 +80,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                             </div>
                             <button
                                 onClick={onClose}
-                                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                                className="rounded-lg p-2 text-zinc-400 hover:bg-white/5 hover:text-white"
                             >
                                 <X className="h-5 w-5" />
                             </button>
@@ -100,7 +102,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                                                             'group flex gap-x-3 rounded-xl p-3 text-sm font-medium transition-all duration-200',
                                                             isActive
                                                                 ? 'bg-[#00E676]/10 text-[#00E676]'
-                                                                : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100'
+                                                                : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-100'
                                                         )}
                                                     >
                                                         <item.icon

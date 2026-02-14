@@ -1,6 +1,6 @@
 'use client'
 
-import { User, Shield, BarChart2, Palette } from 'lucide-react'
+import { User, Shield, BarChart2, Palette, Link, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SettingsSidebarProps {
@@ -11,7 +11,10 @@ interface SettingsSidebarProps {
 export function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
     const items = [
         { id: 'profile', label: 'Profile', icon: User },
+        { id: 'billing', label: 'Billing', icon: CreditCard },
         { id: 'account', label: 'Account', icon: Shield },
+        { id: 'guardian', label: 'Prop Guardian', icon: Shield }, // Reusing Shield or maybe Lock
+        { id: 'connectors', label: 'Connectors', icon: Link },
         { id: 'trading', label: 'Trading', icon: BarChart2 },
         { id: 'appearance', label: 'Appearance', icon: Palette },
     ]

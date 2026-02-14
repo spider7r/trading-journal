@@ -11,15 +11,23 @@ import { createClient } from '@/utils/supabase/client'
 function LoginForm() {
     const searchParams = useSearchParams()
     const error = searchParams.get('error')
+    const plan = searchParams.get('plan')
     const [googleLoading, setGoogleLoading] = useState(false)
 
     const handleGoogleLogin = async () => {
         setGoogleLoading(true)
         const supabase = createClient()
+        const origin = window.location.origin
+        if (plan) {
+            document.cookie = `purchase_plan=${plan}; path=/; max-age=3600; SameSite=Lax`
+        }
+
+        const redirectTo = `${origin}/auth/callback`
+
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
+                redirectTo,
             },
         })
     }
@@ -134,6 +142,7 @@ function LoginForm() {
                         </div>
 
                         <form className="space-y-6">
+                            {plan && <input type="hidden" name="plan" value={plan} />}
                             <div className="space-y-4">
                                 <div>
                                     <label className="sr-only" htmlFor="email">Email</label>

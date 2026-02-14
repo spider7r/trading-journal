@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Plus, X, Image as ImageIcon } from 'lucide-react'
 import { addStrategyExample, deleteStrategyExample } from '@/app/(dashboard)/strategies/actions'
 import { toast } from 'sonner'
+import { useConfirm } from '@/components/ui/ConfirmDialog'
 
 interface StrategyPlaybookProps {
     strategyId: string
@@ -15,6 +16,7 @@ export function StrategyPlaybook({ strategyId, examples }: StrategyPlaybookProps
     const [imageUrl, setImageUrl] = useState('')
     const [notes, setNotes] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const { confirm } = useConfirm()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -35,7 +37,14 @@ export function StrategyPlaybook({ strategyId, examples }: StrategyPlaybookProps
     }
 
     const handleDelete = async (id: string) => {
-        if (confirm('Delete this example?')) {
+        const confirmed = await confirm({
+            title: 'Delete Example?',
+            description: 'This will permanently remove this example from your playbook.',
+            type: 'danger',
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+        })
+        if (confirmed) {
             const res = await deleteStrategyExample(id, strategyId)
             if (res.success) {
                 toast.success('Example deleted')

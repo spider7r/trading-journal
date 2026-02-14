@@ -1,15 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Check, Zap } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createBacktestSession, getStrategiesList } from '@/app/(dashboard)/backtest/actions'
+import { createBacktestSession, getStrategiesList, fetchMarketData } from '@/app/(dashboard)/backtest/actions'
 import { ChallengeRules } from './PropFirmSettings'
 import { Step1SessionType, Step2AssetTime, Step3Config, Step4Review } from './SessionWizardSteps'
 import { motion, AnimatePresence } from 'framer-motion'
+import { localDateToUTC } from '@/utils/date-utils'
+import {
+    startPrefetch,
+    getPrefetchCache,
+    subscribePrefetchCache,
+    clearPrefetchCache,
+    getServerSnapshot
+} from '@/lib/prefetch-cache'
 
 interface CreateSessionDialogProps {
     open: boolean
@@ -42,6 +50,46 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
         minTradingDays: 5
     })
 
+    // ═══════════════════════════════════════════════════════════════
+    // PRE-FETCH: Subscribe to global prefetch cache state
+    // ═══════════════════════════════════════════════════════════════
+    // PRE-FETCH: Subscribe to global prefetch cache state
+    // ═══════════════════════════════════════════════════════════════
+    const prefetchState = useSyncExternalStore(subscribePrefetchCache, getPrefetchCache, getServerSnapshot)
+    const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // PRE-FETCH: Trigger when asset + dates are complete
+    useEffect(() => {
+        // Clear previous timer
+        if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+
+        // Need all three fields
+        if (!asset || !startDate || !endDate) return
+
+        // Check if pair is forex (our prefetch target)
+        const cleanPair = asset.replace('BINANCE:', '').replace('FX:', '').toUpperCase()
+        const isCrypto = cleanPair.endsWith('USDT') || cleanPair.endsWith('BUSD')
+        if (isCrypto) return // Skip crypto for now — Dukascopy is forex only
+
+        // Debounce 800ms to avoid spam while user types dates
+        prefetchTimerRef.current = setTimeout(() => {
+            console.log('[CreateSessionDialog] 🚀 Starting background prefetch!')
+            startPrefetch(asset, startDate, endDate, fetchMarketData)
+        }, 800)
+
+        return () => {
+            if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+        }
+    }, [asset, startDate, endDate])
+
+    // Clean up on dialog close
+    useEffect(() => {
+        if (!open) {
+            // Don't clear cache on close — we want it to persist until session loads!
+            if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+        }
+    }, [open])
+
     useEffect(() => {
         if (open) {
             setStep(1)
@@ -73,8 +121,9 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
                 layout,
                 type: sessionType,
                 strategyId: strategyId === 'none' ? undefined : strategyId,
-                startDate: startDate ? new Date(startDate).toISOString() : undefined,
-                endDate: endDate ? new Date(endDate).toISOString() : undefined,
+                // PERMANENT FIX: Use localDateToUTC to prevent timezone offset bugs
+                startDate: startDate ? localDateToUTC(startDate) : undefined,
+                endDate: endDate ? localDateToUTC(endDate) : undefined,
                 timezone,
                 challengeRules: sessionType === 'PROP_FIRM' ? challengeRules : undefined
             })
@@ -89,6 +138,16 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
             setIsLoading(false)
         }
     }
+
+    // Prefetch status indicator
+    const showPrefetchStatus = asset && startDate && endDate && prefetchState.status !== 'idle'
+    const prefetchLabel = prefetchState.status === 'loading'
+        ? `⚡ Pre-loading data... ${prefetchState.progress}%`
+        : prefetchState.status === 'done'
+            ? `✅ Data pre-loaded (${prefetchState.data1m?.length?.toLocaleString()} candles)`
+            : prefetchState.status === 'error'
+                ? '❌ Pre-load failed (will retry on launch)'
+                : ''
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -171,33 +230,64 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 pt-4 border-t border-white/5 flex justify-between items-center bg-[#050505]">
-                    <Button
-                        variant="ghost"
-                        className="text-[#94A3B8] hover:text-white"
-                        onClick={() => onOpenChange(false)}
-                    >
-                        Cancel
-                    </Button>
-
-                    {step < 4 ? (
-                        <Button
-                            className="bg-white text-black hover:bg-white/90 font-bold"
-                            onClick={handleNext}
-                            disabled={step === 1} // Step 1 auto-advances
-                        >
-                            Next Step <ChevronRight className="w-4 h-4 ml-2" />
-                        </Button>
-                    ) : (
-                        <Button
-                            className="bg-[#00E676] hover:bg-[#00C853] text-black font-bold min-w-[140px]"
-                            onClick={handleCreate}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Launching...' : 'Launch Session'}
-                            {!isLoading && <Check className="w-4 h-4 ml-2" />}
-                        </Button>
+                <div className="p-6 pt-4 border-t border-white/5 bg-[#050505]">
+                    {/* Pre-fetch Status Bar */}
+                    {showPrefetchStatus && (
+                        <div className="mb-3 flex items-center gap-2">
+                            {prefetchState.status === 'loading' && (
+                                <div className="flex-1 flex items-center gap-2">
+                                    <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                                    <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                        <motion.div
+                                            className="h-full bg-gradient-to-r from-amber-400 to-[#00E676] rounded-full"
+                                            initial={{ width: '0%' }}
+                                            animate={{ width: `${prefetchState.progress}%` }}
+                                            transition={{ duration: 0.5 }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] text-amber-400 font-mono">{prefetchState.progress}%</span>
+                                </div>
+                            )}
+                            {prefetchState.status === 'done' && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-[#00E676] font-mono">
+                                    <Check className="w-3 h-3" />
+                                    Data pre-loaded · {prefetchState.data1m?.length?.toLocaleString()} candles
+                                </div>
+                            )}
+                            {prefetchState.status === 'error' && (
+                                <span className="text-[10px] text-red-400 font-mono">Pre-load failed · will retry on launch</span>
+                            )}
+                        </div>
                     )}
+
+                    <div className="flex justify-between items-center">
+                        <Button
+                            variant="ghost"
+                            className="text-[#94A3B8] hover:text-white"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Cancel
+                        </Button>
+
+                        {step < 4 ? (
+                            <Button
+                                className="bg-white text-black hover:bg-white/90 font-bold"
+                                onClick={handleNext}
+                                disabled={step === 1} // Step 1 auto-advances
+                            >
+                                Next Step <ChevronRight className="w-4 h-4 ml-2" />
+                            </Button>
+                        ) : (
+                            <Button
+                                className="bg-[#00E676] hover:bg-[#00C853] text-black font-bold min-w-[140px]"
+                                onClick={handleCreate}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Launching...' : prefetchState.status === 'done' ? '⚡ Instant Launch' : 'Launch Session'}
+                                {!isLoading && <Check className="w-4 h-4 ml-2" />}
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
@@ -213,3 +303,4 @@ function InfoIcon() {
         </svg>
     )
 }
+
