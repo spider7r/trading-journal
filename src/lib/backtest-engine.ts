@@ -180,7 +180,7 @@ export class BacktestEngine {
         }
     }
 
-    private checkOrders(candle?: { high: number, low: number }) {
+    private checkOrders(candle?: { open: number, high: number, low: number }) {
         if (!this.currentQuote) return
 
         const { bid, ask } = this.currentQuote

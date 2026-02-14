@@ -51,7 +51,7 @@ async function fetchTradingViewData(
             timeframe: timeframe,
             range: range,
             to: endTime ? Math.floor(endTime / 1000) : undefined
-        })
+        } as any)
 
         chart.onUpdate(() => {
             if (!chart.periods || chart.periods.length === 0) {
@@ -89,7 +89,7 @@ export interface SymbolInfo {
 
 export async function searchSymbols(query: string): Promise<SymbolInfo[]> {
     try {
-        const results = await TradingView.searchMarket(query)
+        const results = await (TradingView as any).searchMarket(query)
         return results.map((r: any) => ({
             symbol: r.symbol || r.id || r,
             description: r.description || '',

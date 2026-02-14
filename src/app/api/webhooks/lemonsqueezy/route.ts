@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
         // 1. Verify Signature
         const text = await request.text()
-        const signature = headers().get('x-signature')
+        const signature = (await headers()).get('x-signature')
 
         if (!signature) {
             return new Response('Missing Signature', { status: 401 })

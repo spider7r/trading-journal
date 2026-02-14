@@ -58,7 +58,7 @@ export async function fetchDukascopyData(
         console.log(`[Dukascopy] Range: ${fromDate.toISOString()} -> ${toDate.toISOString()}`)
 
         const data = await getHistoricalRates({
-            instrument,
+            instrument: instrument as any,
             dates: {
                 from: fromDate,
                 to: toDate,
