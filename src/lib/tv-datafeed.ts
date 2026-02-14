@@ -1,4 +1,4 @@
-import { fetchHistoricalCandles, searchSymbols, SymbolInfo } from './data-service'
+import { fetchMarketDataAction, searchSymbolsAction } from '@/app/actions/market-data'
 
 // Supported resolutions
 const RESOLUTIONS = ['1', '5', '15', '30', '60', '240', 'D', 'W']
@@ -16,7 +16,7 @@ export const TVDatafeed = {
 
     searchSymbols: async (userInput: string, exchange: string, symbolType: string, onResultReadyCallback: any) => {
         try {
-            const symbols = await searchSymbols(userInput)
+            const symbols = await searchSymbolsAction(userInput)
             onResultReadyCallback(symbols)
         } catch (error) {
             console.error('[TVDatafeed] Search error:', error)
@@ -65,8 +65,8 @@ export const TVDatafeed = {
             if (res === 'D') res = '1D'
             if (res === 'W') res = '1W'
 
-            // Fetch candles
-            const candles = await fetchHistoricalCandles(symbolInfo.name, res, from, to)
+            // Call Server Action
+            const candles = await fetchMarketDataAction(symbolInfo.name, res, from, to)
 
             if (!candles.length) {
                 onHistoryCallback([], { noData: true })
