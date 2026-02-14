@@ -1,4 +1,5 @@
 import { Candle } from '@/lib/types'
+export type { Candle }
 
 // Map intervals to Binance format
 const intervalMap: Record<string, string> = {

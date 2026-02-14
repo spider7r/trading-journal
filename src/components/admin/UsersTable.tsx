@@ -41,7 +41,7 @@ export function UsersTable({ initialUsers }: UsersTableProps) {
         user.id.toLowerCase().includes(search.toLowerCase())
     )
 
-    const handlePlanUpdate = (userId: string, tier: 'STARTER' | 'PROFESSIONAL' | 'ELITE') => {
+    const handlePlanUpdate = (userId: string, tier: 'STARTER' | 'GROWTH' | 'ENTERPRISE') => {
         startTransition(async () => {
             try {
                 // Optimistic Update
@@ -140,11 +140,11 @@ export function UsersTable({ initialUsers }: UsersTableProps) {
                                     </div>
                                 </td>
                                 <td className="p-5">
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide border shadow-sm ${user.plan_tier === 'ELITE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-amber-900/10' :
-                                        user.plan_tier === 'PROFESSIONAL' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-blue-900/10' :
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide border shadow-sm ${user.plan_tier === 'ENTERPRISE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-amber-900/10' :
+                                        user.plan_tier === 'GROWTH' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-blue-900/10' :
                                             'bg-zinc-800 text-zinc-400 border-zinc-700'
                                         }`}>
-                                        {user.plan_tier === 'ELITE' && <Award className="h-3 w-3" />}
+                                        {user.plan_tier === 'ENTERPRISE' && <Award className="h-3 w-3" />}
                                         {user.plan_tier || 'STARTER'}
                                     </span>
                                 </td>
@@ -179,13 +179,13 @@ export function UsersTable({ initialUsers }: UsersTableProps) {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-48 bg-[#09090b] border-zinc-800 text-zinc-200">
                                             <DropdownMenuLabel className="text-xs uppercase tracking-wider text-zinc-500">Manage User</DropdownMenuLabel>
-                                            <DropdownMenuItem onSelect={() => handlePlanUpdate(user.id, 'ELITE')} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
+                                            <DropdownMenuItem onSelect={() => handlePlanUpdate(user.id, 'ENTERPRISE')} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
                                                 <Award className="mr-2 h-4 w-4 text-amber-500" />
-                                                <span>Grant Elite</span>
+                                                <span>Grant Enterprise</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handlePlanUpdate(user.id, 'PROFESSIONAL')} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
+                                            <DropdownMenuItem onSelect={() => handlePlanUpdate(user.id, 'GROWTH')} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
                                                 <CheckCircle className="mr-2 h-4 w-4 text-blue-500" />
-                                                <span>Grant Pro</span>
+                                                <span>Grant Growth</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onSelect={() => handlePlanUpdate(user.id, 'STARTER')} className="focus:bg-zinc-800 focus:text-white cursor-pointer">
                                                 <Shield className="mr-2 h-4 w-4 text-zinc-500" />

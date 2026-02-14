@@ -30,7 +30,7 @@ async function captureElement(
         useCORS: true,
         allowTaint: true,
         logging: false,
-    })
+    } as any)
 }
 
 // Download as PNG image

@@ -167,6 +167,9 @@ export default async function DashboardPage({
         }
     })
 
+    // Fetch full user profile for plan_tier
+    const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single()
+
     return (
 
         <div className="space-y-10 pb-10">
@@ -194,7 +197,7 @@ export default async function DashboardPage({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <GuardianWidget user={user} />
-                {user?.plan_tier === 'ELITE' && <InnerCircleCard plan={user.plan_tier} />}
+                {profile?.plan_tier === 'ENTERPRISE' && <InnerCircleCard plan={profile.plan_tier} />}
             </div>
 
             <AchievementManager

@@ -62,7 +62,7 @@ export async function signup(formData: FormData) {
     }
 
     const { cookies } = await import('next/headers')
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const affiliateRef = cookieStore.get('affiliate_ref')?.value
 
     const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.thetradal.com'

@@ -60,7 +60,7 @@ export default function TVChartContainer({
 
             // @ts-ignore
             if (window.TradingView) {
-                const widget = new window.TradingView.widget(widgetOptions)
+                const widget = new window.TradingView.widget(widgetOptions as any)
 
                 return () => {
                     if (widget) {

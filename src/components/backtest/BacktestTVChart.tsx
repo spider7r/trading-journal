@@ -347,7 +347,7 @@ export default function BacktestTVChart({
                     'display_market_status',
                     'study_templates',
                     'header_saveload',
-                ],
+                ] as any,
                 enabled_features: [
                     'header_widget',
                     'header_resolutions',
@@ -358,7 +358,7 @@ export default function BacktestTVChart({
                     'context_menus',
                     'header_settings',
                     'header_screenshot',
-                ],
+                ] as any,
                 fullscreen: false,
                 autosize: true,
                 theme: 'Dark',
@@ -388,7 +388,7 @@ export default function BacktestTVChart({
 
             // @ts-ignore
             if (window.TradingView) {
-                const widget = new window.TradingView.widget(widgetOptions)
+                const widget = new window.TradingView.widget(widgetOptions as any)
                 widgetRef.current = widget
 
                 widget.onChartReady(() => {
@@ -414,7 +414,7 @@ export default function BacktestTVChart({
 
                         // 1. Step Forward
                         if (onStepForward) {
-                            const btn = widget.createButton({ align: 'left' })
+                            const btn = widget.createButton({ align: 'left' } as any)
                             btn.setAttribute('title', 'Next Candle')
                             btn.addEventListener('click', handleStep)
                             btn.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; cursor: pointer; color: #d1d4dc; border-right: 1px solid #2a2e39; transition: color 0.2s;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></div>`
@@ -424,7 +424,7 @@ export default function BacktestTVChart({
 
                         // 2. Play/Pause
                         if (onPlayPause) {
-                            const btn = widget.createButton({ align: 'left' })
+                            const btn = widget.createButton({ align: 'left' } as any)
                             btn.setAttribute('title', 'Play/Pause')
                             btn.addEventListener('click', handlePlay)
                             playButtonRef.current = btn
@@ -436,7 +436,7 @@ export default function BacktestTVChart({
 
                         // 3. Quick Place (Premium Button)
                         if (onPlaceOrder) {
-                            const btn = widget.createButton({ align: 'right' })
+                            const btn = widget.createButton({ align: 'right' } as any)
                             btn.setAttribute('title', 'Place Order')
                             btn.addEventListener('click', handlePlaceOrder)
                             btn.innerHTML = `
@@ -480,7 +480,7 @@ export default function BacktestTVChart({
 
                         // 4. Rewind
                         if (onReset) {
-                            const btnRewind = widget.createButton({ align: 'right' })
+                            const btnRewind = widget.createButton({ align: 'right' } as any)
                             btnRewind.setAttribute('title', 'Reset Session')
                             btnRewind.addEventListener('click', handleReset)
                             btnRewind.innerHTML = `<div style="display: flex; gap: 6px; align-items: center; justify-content: center; height: 32px; width: 32px; cursor: pointer; color: #71717a; transition: color 0.2s;">
