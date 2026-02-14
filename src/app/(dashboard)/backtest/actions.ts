@@ -31,7 +31,6 @@ export async function createBacktestSession(formData: {
     startDate?: string
     endDate?: string
     timezone?: string
-    timezone?: string
     category?: AssetCategory
     challengeRules?: any // Using any for now to avoid strict type issues, ideally define interface
 }) {
