@@ -203,8 +203,6 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
         </>
     )
 }
-    )
-}
 
 function InfoIcon() {
     return (
