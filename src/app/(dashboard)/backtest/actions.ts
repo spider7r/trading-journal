@@ -194,7 +194,10 @@ export async function fetchMarketData(
     // Auto-detect category if not provided (critical for existing sessions)
     const resolvedCategory = category || detectCategory(pair)
 
-    console.log(`[fetchMarketData] ${pair} ${interval} (Limit: ${limit}) Category: ${resolvedCategory || 'unknown'} (${category ? 'explicit' : 'auto-detected'})`)
+    console.log(`[fetchMarketData] ═══════════════════════════════════════`)
+    console.log(`[fetchMarketData] Pair: ${pair}, Interval: ${interval}, Limit: ${limit}`)
+    console.log(`[fetchMarketData] Category: ${resolvedCategory || 'unknown'} (${category ? 'explicit' : 'auto-detected'})`)
+    console.log(`[fetchMarketData] Start: ${startTime ? new Date(startTime).toISOString() : 'none'}, End: ${endTime ? new Date(endTime).toISOString() : 'none'}`)
 
     // Map intervals to TradingView format fallback (data-service handles specific maps for Dukascopy/Binance)
     const intervalMap: Record<string, string> = {
@@ -209,20 +212,26 @@ export async function fetchMarketData(
         else symbol = `FX:${symbol}`
     }
 
+    console.log(`[fetchMarketData] Final symbol: ${symbol}, TV interval: ${tvInterval}`)
+
     try {
         // fetchHistoricalData in data-service handles routing to Dukascopy/Binance/TradingView
-        // Pass resolvedCategory to ensure correct data source selection
         const data = await fetchHistoricalData(symbol, tvInterval, limit, endTime, resolvedCategory)
+
+        console.log(`[fetchMarketData] ✅ Got ${data?.length || 0} candles`)
 
         // Filter start time if needed
         if (startTime) {
-            return data.filter((c: any) => c.time * 1000 >= startTime)
+            const filtered = data.filter((c: any) => c.time * 1000 >= startTime)
+            console.log(`[fetchMarketData] Filtered: ${data.length} → ${filtered.length} candles`)
+            return filtered
         }
         return data
 
-    } catch (error) {
-        console.error('Failed to fetch market data:', error)
-        return []
+    } catch (error: any) {
+        console.error(`[fetchMarketData] ❌ FAILED:`, error?.message || error)
+        // Re-throw so the caller sees the actual error
+        throw new Error(`Data fetch failed for ${pair}: ${error?.message || 'Unknown error'}`)
     }
 }
 

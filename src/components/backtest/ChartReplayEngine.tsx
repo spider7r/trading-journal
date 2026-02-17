@@ -47,14 +47,11 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
     // SYNC INIT: Check global cache immediately for instant load
     // ═══════════════════════════════════════════════════════════════
     const [fullData, setFullData] = useState<Candle[]>(() => {
-        if (initialSession?.asset) { // 'asset' is the field in DB, 'pair' is mapped
-            const pair = initialSession.asset
-            const cached = getCachedData(pair)
+        const sessionPair = initialSession?.pair || initialSession?.asset
+        if (sessionPair) {
+            const cached = getCachedData(sessionPair)
             if (cached && cached.length > 0) {
-                console.log(`[Backtest] ⚡ SYNC INIT: Found ${cached.length} candles in cache!`)
-                // If initial interval is 1m, use as is. If not, aggregate synchronously.
-                // Default interval is '15m' (set below)
-                // We'll use the default '15m' here to match what state will be
+                console.log(`[Backtest] ⚡ SYNC INIT: Found ${cached.length} candles in cache for ${sessionPair}!`)
                 return aggregateCandles(cached, '15m')
             }
         }
@@ -86,7 +83,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
 
     const [isPlaying, setIsPlaying] = useState(false)
     const [speed, setSpeed] = useState(1000)
-    const [pair, setPair] = useState(initialSession?.asset || 'BTCUSDT')
+    const [pair, setPair] = useState(initialSession?.pair || initialSession?.asset || 'BTCUSDT')
     const [interval, setInterval] = useState('15m')
     const [timezone, setTimezone] = useState(initialSession?.timezone || 'Etc/UTC')
 
@@ -279,9 +276,9 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
             }
 
             if (!baseData1m || baseData1m.length === 0) {
-                // FALLBACK: Fetch 1m data from Dukascopy (one-time cost)
+                // FALLBACK: Fetch 1m data from data service (routes to correct API)
                 setIsLoading(true)
-                console.log('[Backtest] 📡 Fetching 1m base data from Dukascopy...')
+                console.log(`[Backtest] 📡 Fetching 1m base data for ${pair}...`)
 
                 // Buffer: 200 candles of 15m = 3000 x 1m candles before session start
                 const bufferMs = 200 * 15 * 60 * 1000 // 50 hours
@@ -305,13 +302,18 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                         setTimeout(() => reject(new Error("Data load timeout")), 90000)
                     )
 
+                    console.log(`[Backtest] Calling fetchMarketData('${pair}', '1m', ${limit}, ${fetchStart}, ${endTime})`)
                     const rawData = await Promise.race([
                         fetchMarketData(pair, '1m', limit, fetchStart, endTime),
                         timeoutPromise
                     ]) as any[]
 
+                    console.log(`[Backtest] fetchMarketData returned: ${rawData?.length || 0} candles`)
+
                     if (!rawData || rawData.length === 0) {
-                        toast.error("No market data found")
+                        toast.error(`No market data found for ${pair}. Check browser console for details.`)
+                        console.error(`[Backtest] ❌ No data returned for pair: ${pair}`)
+                        console.error(`[Backtest] Session:`, { pair, startDate: initialSession?.start_date, endDate: initialSession?.end_date })
                         setIsLoading(false)
                         loadingRef.current = false
                         isTimeframeSwitchingRef.current = false
