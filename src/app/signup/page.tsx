@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { signup } from '@/app/login/actions'
 import { TestimonialCarousel } from '@/components/auth/TestimonialCarousel'
 import { validatePassword, validateEmail } from '@/utils/validation'
@@ -11,7 +11,7 @@ import { createClient } from '@/utils/supabase/client'
 
 import { useSearchParams } from 'next/navigation'
 
-export default function SignupPage() {
+function SignupPageContent() {
     const searchParams = useSearchParams()
     const plan = searchParams.get('plan')
 
@@ -316,5 +316,17 @@ export default function SignupPage() {
                 </motion.div>
             </div>
         </div>
+    )
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500" />
+            </div>
+        }>
+            <SignupPageContent />
+        </Suspense>
     )
 }
