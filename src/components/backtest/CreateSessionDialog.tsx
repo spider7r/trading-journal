@@ -1,14 +1,27 @@
 'use client'
 
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { X, ChevronLeft, ChevronRight, Check, Zap } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createBacktestSession, getStrategiesList, fetchMarketData } from '@/app/(dashboard)/backtest/actions'
-// ... existing imports
+import { createBacktestSession, getStrategiesList } from '@/app/(dashboard)/backtest/actions'
+import { ChallengeRules } from './PropFirmSettings'
+import { Step1SessionType, Step2AssetTime, Step3Config, Step4Review } from './SessionWizardSteps'
+import { motion, AnimatePresence } from 'framer-motion'
 import { OnboardingPricingDialog } from '@/components/upgrade/OnboardingPricingDialog'
+
+interface CreateSessionDialogProps {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+}
+
+// Helper to convert local date string to UTC ISO string without timezone offset
+function localDateToUTC(dateStr: string): string {
+    const date = new Date(dateStr)
+    return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())).toISOString()
+}
 
 export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogProps) {
     const router = useRouter()
@@ -16,7 +29,47 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
     const [isLoading, setIsLoading] = useState(false)
     const [showPricing, setShowPricing] = useState(false)
 
-    // ... existing state ...
+    // Form State
+    const [sessionType, setSessionType] = useState<'BACKTEST' | 'PROP_FIRM'>('BACKTEST')
+    const [name, setName] = useState('')
+    const [balance, setBalance] = useState('100000')
+    const [asset, setAsset] = useState('')
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
+    const [timezone, setTimezone] = useState('America/New_York')
+    const [layout, setLayout] = useState('')
+    const [strategyId, setStrategyId] = useState('')
+    const [strategies, setStrategies] = useState<any[]>([])
+
+    // Prop Firm State
+    const [challengeRules, setChallengeRules] = useState<ChallengeRules>({
+        dailyDrawdown: 5,
+        maxDrawdown: 10,
+        profitTarget: 10,
+        timeLimit: 30,
+        minTradingDays: 5
+    })
+
+    useEffect(() => {
+        if (open) {
+            setStep(1)
+            getStrategiesList().then(setStrategies)
+        }
+    }, [open])
+
+    const handleNext = () => {
+        if (step === 2 && (!asset || !startDate || !endDate)) {
+            toast.error('Please select an asset and date range')
+            return
+        }
+        if (step === 3 && (!name || !balance)) {
+            toast.error('Please enter a name and balance')
+            return
+        }
+        setStep(s => s + 1)
+    }
+
+    const handleBack = () => setStep(s => s - 1)
 
     const handleCreate = async () => {
         setIsLoading(true)
@@ -28,7 +81,6 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
                 layout,
                 type: sessionType,
                 strategyId: strategyId === 'none' ? undefined : strategyId,
-                // PERMANENT FIX: Use localDateToUTC to prevent timezone offset bugs
                 startDate: startDate ? localDateToUTC(startDate) : undefined,
                 endDate: endDate ? localDateToUTC(endDate) : undefined,
                 timezone,
@@ -41,9 +93,7 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
         } catch (error: any) {
             console.error('Session creation error:', error)
             if (error.message && error.message.includes('LIMIT_REACHED')) {
-                // Show pricing dialog
                 setShowPricing(true)
-                // Optional: Show toast explaining why
                 toast.error(error.message.replace('LIMIT_REACHED: ', ''))
             } else {
                 toast.error(error.message || 'Failed to create session')
@@ -53,12 +103,9 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
         }
     }
 
-    // ... existing render ...
-
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                {/* ... existing dialog content ... */}
                 <DialogContent className="sm:max-w-[600px] bg-[#0A0A0A] border-white/5 text-white p-0 gap-0 overflow-hidden min-h-[500px] flex flex-col w-[95vw]">
                     <DialogTitle className="sr-only">Create New Session</DialogTitle>
                     {/* Header */}
@@ -138,64 +185,33 @@ export function CreateSessionDialog({ open, onOpenChange }: CreateSessionDialogP
                     </div>
 
                     {/* Footer */}
-                    <div className="p-6 pt-4 border-t border-white/5 bg-[#050505]">
-                        {/* Pre-fetch Status Bar */}
-                        {showPrefetchStatus && (
-                            <div className="mb-3 flex items-center gap-2">
-                                {prefetchState.status === 'loading' && (
-                                    <div className="flex-1 flex items-center gap-2">
-                                        <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                            <motion.div
-                                                className="h-full bg-gradient-to-r from-amber-400 to-[#00E676] rounded-full"
-                                                initial={{ width: '0%' }}
-                                                animate={{ width: `${prefetchState.progress}%` }}
-                                                transition={{ duration: 0.5 }}
-                                            />
-                                        </div>
-                                        <span className="text-[10px] text-amber-400 font-mono">{prefetchState.progress}%</span>
-                                    </div>
-                                )}
-                                {prefetchState.status === 'done' && (
-                                    <div className="flex items-center gap-1.5 text-[10px] text-[#00E676] font-mono">
-                                        <Check className="w-3 h-3" />
-                                        Data pre-loaded · {prefetchState.data1m?.length?.toLocaleString()} candles
-                                    </div>
-                                )}
-                                {prefetchState.status === 'error' && (
-                                    <span className="text-[10px] text-red-400 font-mono">Pre-load failed · will retry on launch</span>
-                                )}
-                            </div>
-                        )}
+                    <div className="p-6 pt-4 border-t border-white/5 flex justify-between items-center bg-[#050505]">
+                        <Button
+                            variant="ghost"
+                            className="text-[#94A3B8] hover:text-white"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Cancel
+                        </Button>
 
-                        <div className="flex justify-between items-center">
+                        {step < 4 ? (
                             <Button
-                                variant="ghost"
-                                className="text-[#94A3B8] hover:text-white"
-                                onClick={() => onOpenChange(false)}
+                                className="bg-white text-black hover:bg-white/90 font-bold"
+                                onClick={handleNext}
+                                disabled={step === 1} // Step 1 auto-advances
                             >
-                                Cancel
+                                Next Step <ChevronRight className="w-4 h-4 ml-2" />
                             </Button>
-
-                            {step < 4 ? (
-                                <Button
-                                    className="bg-white text-black hover:bg-white/90 font-bold"
-                                    onClick={handleNext}
-                                    disabled={step === 1} // Step 1 auto-advances
-                                >
-                                    Next Step <ChevronRight className="w-4 h-4 ml-2" />
-                                </Button>
-                            ) : (
-                                <Button
-                                    className="bg-[#00E676] hover:bg-[#00C853] text-black font-bold min-w-[140px]"
-                                    onClick={handleCreate}
-                                    disabled={isLoading}
-                                >
-                                    {isLoading ? 'Launching...' : prefetchState.status === 'done' ? '⚡ Instant Launch' : 'Launch Session'}
-                                    {!isLoading && <Check className="w-4 h-4 ml-2" />}
-                                </Button>
-                            )}
-                        </div>
+                        ) : (
+                            <Button
+                                className="bg-[#00E676] hover:bg-[#00C853] text-black font-bold min-w-[140px]"
+                                onClick={handleCreate}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Launching...' : 'Launch Session'}
+                                {!isLoading && <Check className="w-4 h-4 ml-2" />}
+                            </Button>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>
@@ -213,4 +229,3 @@ function InfoIcon() {
         </svg>
     )
 }
-
