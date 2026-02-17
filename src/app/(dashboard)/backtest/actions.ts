@@ -18,7 +18,7 @@ export async function getStrategiesList() {
     return data || []
 }
 
-import { fetchHistoricalData } from '@/lib/data-service'
+import { fetchHistoricalData, detectCategory } from '@/lib/data-service'
 import { AssetCategory } from '@/lib/assets'
 
 export async function createBacktestSession(formData: {
@@ -191,7 +191,10 @@ export async function fetchMarketData(
     endTime?: number,
     category?: AssetCategory
 ) {
-    console.log(`Fetching market data for ${pair} ${interval} (Limit: ${limit})`)
+    // Auto-detect category if not provided (critical for existing sessions)
+    const resolvedCategory = category || detectCategory(pair)
+
+    console.log(`[fetchMarketData] ${pair} ${interval} (Limit: ${limit}) Category: ${resolvedCategory || 'unknown'} (${category ? 'explicit' : 'auto-detected'})`)
 
     // Map intervals to TradingView format fallback (data-service handles specific maps for Dukascopy/Binance)
     const intervalMap: Record<string, string> = {
@@ -207,9 +210,9 @@ export async function fetchMarketData(
     }
 
     try {
-        // Calculate range or use limit. 
-        // fetchHistoricalData in data-service handles routing to Dukascopy/Binance.
-        const data = await fetchHistoricalData(symbol, tvInterval, limit, endTime, category)
+        // fetchHistoricalData in data-service handles routing to Dukascopy/Binance/TradingView
+        // Pass resolvedCategory to ensure correct data source selection
+        const data = await fetchHistoricalData(symbol, tvInterval, limit, endTime, resolvedCategory)
 
         // Filter start time if needed
         if (startTime) {

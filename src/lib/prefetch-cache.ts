@@ -124,7 +124,8 @@ export async function startPrefetch(
     pair: string,
     startDate: string,
     endDate: string,
-    fetchFn: (pair: string, interval: string, limit: number, startTime?: number, endTime?: number) => Promise<any[]>
+    fetchFn: (pair: string, interval: string, limit: number, startTime?: number, endTime?: number, category?: string) => Promise<any[]>,
+    category?: string
 ) {
     // Cancel previous fetch if any
     if (abortController) {
@@ -153,6 +154,7 @@ export async function startPrefetch(
     console.log(`  Pair: ${pair}`)
     console.log(`  Start: ${startDate}`)
     console.log(`  End: ${endDate}`)
+    console.log(`  Category: ${category || 'auto-detect'}`)
 
     abortController = new AbortController()
     const signal = abortController.signal
@@ -189,8 +191,8 @@ export async function startPrefetch(
 
         if (signal.aborted) return
 
-        // Fetch 1m data
-        const rawData = await fetchFn(pair, '1m', limit, fetchStart, endMs)
+        // Fetch 1m data — pass category for correct data source routing
+        const rawData = await fetchFn(pair, '1m', limit, fetchStart, endMs, category)
 
         if (signal.aborted) return
 

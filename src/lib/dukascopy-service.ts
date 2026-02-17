@@ -1,8 +1,9 @@
 import { getHistoricalRates, Timeframe } from 'dukascopy-node'
 import { Candle } from '@/lib/types'
 
-// Map app intervals to Dukascopy timeframes
+// Map app intervals AND TradingView intervals to Dukascopy timeframes
 const intervalMap: Record<string, any> = {
+    // App format
     '1m': Timeframe.m1,
     '5m': Timeframe.m5,
     '15m': Timeframe.m15,
@@ -10,6 +11,15 @@ const intervalMap: Record<string, any> = {
     '1h': Timeframe.h1,
     '4h': Timeframe.h4,
     '1d': Timeframe.d1,
+    // TradingView format (same values, different keys)
+    '1': Timeframe.m1,
+    '5': Timeframe.m5,
+    '15': Timeframe.m15,
+    '30': Timeframe.m30,
+    '60': Timeframe.h1,
+    '240': Timeframe.h4,
+    'D': Timeframe.d1,
+    '1D': Timeframe.d1,
 }
 
 export async function fetchDukascopyData(
@@ -43,14 +53,17 @@ export async function fetchDukascopyData(
         const toDate = endTime ? new Date(endTime) : new Date()
 
         // Estimate 'from' date based on limit and interval
-        // 1m = 60000ms
-        let msPerCandle = 60 * 1000
-        if (interval === '5m') msPerCandle *= 5
-        if (interval === '15m') msPerCandle *= 15
-        if (interval === '1h') msPerCandle *= 60
-        if (interval === '4h') msPerCandle *= 240
-        if (interval === '1d') msPerCandle *= 1440
-
+        // Use a lookup that handles both app format ('1m') and TV format ('1')
+        const msPerCandleMap: Record<string, number> = {
+            '1m': 60000, '1': 60000,
+            '5m': 300000, '5': 300000,
+            '15m': 900000, '15': 900000,
+            '30m': 1800000, '30': 1800000,
+            '1h': 3600000, '60': 3600000,
+            '4h': 14400000, '240': 14400000,
+            '1d': 86400000, 'D': 86400000, '1D': 86400000,
+        }
+        const msPerCandle = msPerCandleMap[interval] || 60000
         const rangeMs = limit * msPerCandle
         // Add buffer to ensure we get enough candles
         const fromDate = new Date(toDate.getTime() - (rangeMs * 1.5))

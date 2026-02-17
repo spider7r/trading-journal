@@ -2,7 +2,48 @@ import TradingView from '@mathieuc/tradingview'
 import { Candle } from '@/lib/types'
 import { fetchBinanceData } from './binance'
 import { fetchDukascopyData } from './dukascopy-service'
-import { AssetCategory } from './assets'
+import { AssetCategory, ASSET_CATEGORIES } from './assets'
+
+/**
+ * Auto-detect asset category from symbol name.
+ * This allows the system to route to the correct data source even when
+ * category is not explicitly provided (e.g., loading existing sessions).
+ */
+export function detectCategory(symbol: string): AssetCategory | undefined {
+    const clean = symbol
+        .replace('BINANCE:', '')
+        .replace('FX:', '')
+        .replace('OANDA:', '')
+        .replace('FOREX:', '')
+        .replace('TVC:', '')
+        .replace('NASDAQ:', '')
+        .replace('NYSE:', '')
+        .toUpperCase()
+
+    // Check exact match against all known assets
+    for (const [cat, assets] of Object.entries(ASSET_CATEGORIES)) {
+        for (const asset of assets) {
+            const cleanAsset = asset
+                .replace('BINANCE:', '')
+                .replace('FX:', '')
+                .replace('OANDA:', '')
+                .replace('TVC:', '')
+                .replace('NASDAQ:', '')
+                .replace('NYSE:', '')
+                .toUpperCase()
+            if (clean === cleanAsset) {
+                return cat as AssetCategory
+            }
+        }
+    }
+
+    // Heuristic fallbacks for unlisted but common patterns
+    if (clean.endsWith('USDT') || clean.endsWith('BUSD') || clean.endsWith('BTC')) return 'CRYPTO'
+    if (clean.includes('XAU') || clean.includes('XAG') || clean.includes('OIL') || clean.includes('PLATINUM') || clean.includes('PALLADIUM')) return 'METALS'
+    if (clean.length === 6 && /^[A-Z]+$/.test(clean)) return 'FOREX' // 6-letter pair like EURUSD, GBPJPY
+
+    return undefined // Will fall through to TradingView as last resort
+}
 
 /**
  * Enhanced Data Fetcher that routes to the correct API based on Asset Category.
@@ -11,6 +52,8 @@ import { AssetCategory } from './assets'
  * - FOREX, METALS -> Dukascopy (Tick data)
  * - CRYPTO -> Binance (Direct API)
  * - INDICES, STOCKS -> TradingView (Wrapper)
+ * 
+ * If category is not provided, it will be auto-detected from the symbol name.
  */
 export async function fetchHistoricalData(
     symbol: string,
@@ -20,13 +63,22 @@ export async function fetchHistoricalData(
     category?: AssetCategory
 ): Promise<Candle[]> {
 
+    // Auto-detect category if not provided
+    const resolvedCategory = category || detectCategory(symbol)
+
+    if (resolvedCategory) {
+        console.log(`[DataService] Routing ${symbol} → ${resolvedCategory} (${category ? 'explicit' : 'auto-detected'})`)
+    } else {
+        console.log(`[DataService] No category for ${symbol}, falling back to TradingView`)
+    }
+
     // 1. DUKASCOPY (Forex & Metals)
-    if (category === 'FOREX' || category === 'METALS') {
+    if (resolvedCategory === 'FOREX' || resolvedCategory === 'METALS') {
         return await fetchDukascopyData(symbol, timeframe, range, endTime)
     }
 
     // 2. BINANCE (Crypto)
-    if (category === 'CRYPTO') {
+    if (resolvedCategory === 'CRYPTO') {
         return await fetchBinanceData(symbol, timeframe, range, undefined, endTime)
     }
 

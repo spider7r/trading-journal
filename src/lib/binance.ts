@@ -1,8 +1,9 @@
 import { Candle } from '@/lib/types'
 export type { Candle }
 
-// Map intervals to Binance format
+// Map intervals to Binance format (supports both app format and TradingView format)
 const intervalMap: Record<string, string> = {
+    // App format
     '1m': '1m',
     '3m': '3m',
     '5m': '5m',
@@ -18,6 +19,16 @@ const intervalMap: Record<string, string> = {
     '3d': '3d',
     '1w': '1w',
     '1M': '1M',
+    // TradingView format
+    '1': '1m',
+    '5': '5m',
+    '15': '15m',
+    '30': '30m',
+    '60': '1h',
+    '240': '4h',
+    'D': '1d',
+    '1D': '1d',
+    'W': '1w',
 }
 
 export async function fetchBinanceData(

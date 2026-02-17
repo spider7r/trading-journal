@@ -76,26 +76,45 @@ const createBacktestDatafeed = (
         },
         resolveSymbol: (symbolName: string, onSymbolResolvedCallback: any, onResolveErrorCallback: any) => {
             // Detect asset type for proper price precision
-            const cleanSymbol = symbolName.replace('BINANCE:', '').replace('FX:', '').toUpperCase()
+            const cleanSymbol = symbolName.replace('BINANCE:', '').replace('FX:', '').replace('OANDA:', '').replace('TVC:', '').replace('NASDAQ:', '').replace('NYSE:', '').toUpperCase()
             const isCrypto = cleanSymbol.endsWith('USDT') || cleanSymbol.endsWith('BUSD')
-            const isForex = !isCrypto && cleanSymbol.length === 6
+            const isForex = !isCrypto && cleanSymbol.length === 6 && /^[A-Z]+$/.test(cleanSymbol)
             const isJPY = cleanSymbol.includes('JPY')
+            const isMetal = cleanSymbol.includes('XAU') || cleanSymbol.includes('XAG') || cleanSymbol.includes('PLATINUM') || cleanSymbol.includes('PALLADIUM')
+            const isOil = cleanSymbol.includes('OIL')
+            const isIndex = cleanSymbol.includes('SPX') || cleanSymbol.includes('NAS') || cleanSymbol.includes('US30') || cleanSymbol.includes('DEU') || cleanSymbol.includes('UK100') || cleanSymbol.includes('EU50') || cleanSymbol.includes('FR40') || cleanSymbol.includes('JP225') || cleanSymbol.includes('AU200') || cleanSymbol.includes('HK33')
 
             // Set pricescale based on asset type:
             // - Forex (non-JPY): 5 decimals (pricescale: 100000) e.g., 1.18287
             // - Forex (JPY): 3 decimals (pricescale: 1000) e.g., 150.123
-            // - Crypto: varies, use 8 decimals for safety (pricescale: 100000000)
+            // - Crypto: 8 decimals for safety (pricescale: 100000000)
+            // - Metals (Gold): 2 decimals (pricescale: 100) e.g., 2035.50
+            // - Metals (Silver): 4 decimals (pricescale: 10000) e.g., 23.4567
+            // - Oil: 2 decimals (pricescale: 100) e.g., 78.50
+            // - Indices: 1 decimal (pricescale: 10) e.g., 5123.4
             let pricescale = 100000 // Default: 5 decimals for forex
             if (isJPY) {
                 pricescale = 1000 // 3 decimals for JPY pairs
             } else if (isCrypto) {
-                pricescale = 100000000 // 8 decimals for crypto (handles small altcoins)
+                pricescale = 100000000 // 8 decimals for crypto
+            } else if (cleanSymbol.includes('XAU')) {
+                pricescale = 100 // 2 decimals for Gold
+            } else if (cleanSymbol.includes('XAG')) {
+                pricescale = 10000 // 4 decimals for Silver
+            } else if (isOil) {
+                pricescale = 100 // 2 decimals for Oil
+            } else if (isMetal) {
+                pricescale = 100 // 2 decimals for other metals
+            } else if (isIndex) {
+                pricescale = 10 // 1 decimal for indices
             }
+
+            const assetType = isCrypto ? 'crypto' : isIndex ? 'stock' : 'forex'
 
             const info = {
                 name: symbolName,
                 description: symbolName,
-                type: isCrypto ? 'crypto' : 'forex',
+                type: assetType,
                 session: '24x7',
                 timezone: 'Etc/UTC',
                 minmov: 1,
