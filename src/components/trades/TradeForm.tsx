@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, PlusCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { LimitReachedDialog } from '@/components/upgrade/LimitReachedDialog'
 
 interface TradeFormProps {
     accountId?: string
@@ -23,6 +24,7 @@ export function TradeForm({ accountId, onSuccess }: TradeFormProps) {
     const [takeProfit, setTakeProfit] = useState<string>('')
     const [status, setStatus] = useState('OPEN')
     const [showConfirmation, setShowConfirmation] = useState(false)
+    const [showLimitDialog, setShowLimitDialog] = useState(false)
     const [formDataToSubmit, setFormDataToSubmit] = useState<FormData | null>(null)
     const [strategies, setStrategies] = useState<any[]>([])
     const [selectedStrategy, setSelectedStrategy] = useState<string>('')
@@ -71,7 +73,11 @@ export function TradeForm({ accountId, onSuccess }: TradeFormProps) {
         setShowConfirmation(false)
 
         if (result?.error) {
-            setError(result.error)
+            if (result.error.includes('Free plan limit reached')) {
+                setShowLimitDialog(true)
+            } else {
+                setError(result.error)
+            }
         } else {
             // Reset form
             setEntryPrice('')
@@ -315,7 +321,6 @@ export function TradeForm({ accountId, onSuccess }: TradeFormProps) {
                 </button>
             </form>
 
-            {/* Confirmation Modal */}
             {showConfirmation && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
                     <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
@@ -374,6 +379,12 @@ export function TradeForm({ accountId, onSuccess }: TradeFormProps) {
                     </div>
                 </div>
             )}
+
+            <LimitReachedDialog
+                open={showLimitDialog}
+                onOpenChange={setShowLimitDialog}
+                feature="trade"
+            />
         </>
     )
 }

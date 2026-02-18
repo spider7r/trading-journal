@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 interface LimitReachedDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    feature: 'chat' | 'vision'
+    feature: 'chat' | 'vision' | 'trade'
 }
 
 export function LimitReachedDialog({ open, onOpenChange, feature }: LimitReachedDialogProps) {
@@ -44,7 +44,7 @@ export function LimitReachedDialog({ open, onOpenChange, feature }: LimitReached
                         Limit Reached
                     </h2>
                     <p className="text-zinc-400 text-sm font-medium leading-relaxed mb-8 max-w-[80%]">
-                        You've hit your daily limit for {feature === 'vision' ? 'Chart Analysis' : 'AI Chat'}.
+                        You've hit your {feature === 'trade' ? 'monthly limit for TRADES' : `daily limit for ${feature === 'vision' ? 'Chart Analysis' : 'AI Chat'}`}.
                         Upgrade to <span className="text-amber-500 font-bold">PROFESSIONAL</span> for unlimited access.
                     </p>
 
