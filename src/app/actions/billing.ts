@@ -138,3 +138,34 @@ export async function getCheckoutUrl(plan: string, interval: 'monthly' | 'yearly
         return { error: 'Failed to initiate checkout' }
     }
 }
+
+/**
+ * Activate the Free plan for a user.
+ * Sets onboarding_completed = true and plan_tier = 'free' in the DB.
+ * This must be called BEFORE redirecting to dashboard to prevent
+ * the infinite redirect loop (dashboard checks onboarding_completed).
+ */
+export async function activateFreePlan() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error('Not authenticated')
+    }
+
+    const { error } = await supabase
+        .from('users')
+        .update({
+            onboarding_completed: true,
+            plan_tier: 'free',
+            subscription_status: 'free'
+        })
+        .eq('id', user.id)
+
+    if (error) {
+        console.error('Failed to activate free plan:', error)
+        throw new Error('Failed to activate free plan')
+    }
+
+    return { success: true }
+}

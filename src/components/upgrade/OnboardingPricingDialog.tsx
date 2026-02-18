@@ -4,8 +4,8 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Check } from 'lucide-react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ManualPaymentDialog } from './ManualPaymentDialog'
 import { cn } from '@/lib/utils'
+import { activateFreePlan } from '@/app/actions/billing'
 
 interface OnboardingPricingDialogProps {
     open: boolean
@@ -15,6 +15,7 @@ interface OnboardingPricingDialogProps {
 export function OnboardingPricingDialog({ open, onOpenChange }: OnboardingPricingDialogProps) {
     const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: string } | null>(null)
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+    const [isActivating, setIsActivating] = useState(false)
 
     const plans = [
         {
@@ -32,7 +33,7 @@ export function OnboardingPricingDialog({ open, onOpenChange }: OnboardingPricin
             desc: "For serious traders seeking consistency.",
             features: ["Everything in Starter", "Unlimited Auto-Sync", "Full AI Coach Access", "Prop Firm Guardian", "Advanced Strategy Tracking"],
             cta: "Start 7-Day Free Trial",
-            highlight: true, // Green Style
+            highlight: true,
             popular: true
         },
         {
@@ -41,31 +42,38 @@ export function OnboardingPricingDialog({ open, onOpenChange }: OnboardingPricin
             desc: "For funded traders & teams.",
             features: ["Everything in Growth (7-Day Trial)", "Multi-Account Aggregation", "Mentor Access (Discord)", "Risk Model Templates", "API Access"],
             cta: "Start 7-Day Free Trial",
-            highlight: false, // Standard Style
+            highlight: false,
             popular: false
         }
     ]
 
-    const router = useRouter() // Need to import useRouter
+    const router = useRouter()
 
     const handlePlanSelect = (plan: typeof plans[0]) => {
         if (plan.name === "STARTER" || plan.name === "GROWTH" || plan.name === "ENTERPRISE") {
             router.push(`/checkout?plan=${plan.name.toLowerCase()}`)
             return
         }
-        // Fallback
         setSelectedPlan({ name: plan.name, price: plan.price })
     }
 
-    // Removed ManualPaymentDialog return block as we are redirecting now.
-
+    const handleFreeTier = async () => {
+        setIsActivating(true)
+        try {
+            await activateFreePlan()
+            onOpenChange(false)
+            router.push('/dashboard')
+        } catch (error) {
+            console.error('Failed to activate free plan:', error)
+            onOpenChange(false)
+            router.push('/dashboard')
+        }
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-6xl border-0 bg-transparent p-0 overflow-hidden shadow-2xl focus:outline-none">
                 <div className="bg-[#050505] rounded-3xl overflow-hidden w-full border border-white/10 shadow-2xl relative">
-
-                    {/* Background Noise/Gradient Effects could go here */}
 
                     <div className="p-8 md:p-12 overflow-y-auto max-h-[90vh] scrollbar-thin scrollbar-thumb-zinc-800">
 
@@ -176,10 +184,11 @@ export function OnboardingPricingDialog({ open, onOpenChange }: OnboardingPricin
 
                                 <div>
                                     <button
-                                        onClick={() => onOpenChange(false)}
-                                        className="px-8 py-4 rounded-xl border border-white/10 hover:bg-white/5 text-white font-bold text-sm uppercase tracking-wide transition-all whitespace-nowrap"
+                                        onClick={handleFreeTier}
+                                        disabled={isActivating}
+                                        className="px-8 py-4 rounded-xl border border-white/10 hover:bg-white/5 text-white font-bold text-sm uppercase tracking-wide transition-all whitespace-nowrap disabled:opacity-50"
                                     >
-                                        Start for Free
+                                        {isActivating ? 'Activating...' : 'Start for Free'}
                                     </button>
                                 </div>
                             </div>

@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ManualPaymentDialog } from '@/components/upgrade/ManualPaymentDialog'
+import { activateFreePlan } from '@/app/actions/billing'
 
 export default function OnboardingPage() {
     const router = useRouter()
     const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: string } | null>(null)
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+    const [isActivating, setIsActivating] = useState(false)
 
     const plans = [
         {
@@ -45,9 +47,16 @@ export default function OnboardingPage() {
         router.push(`/checkout?plan=${plan.name.toLowerCase()}`)
     }
 
-    const handleFreeTier = () => {
-        // Redirect to dashboard for free tier
-        router.push('/dashboard')
+    const handleFreeTier = async () => {
+        setIsActivating(true)
+        try {
+            await activateFreePlan()
+            router.push('/dashboard')
+        } catch (error) {
+            console.error('Failed to activate free plan:', error)
+            // Still try to redirect
+            router.push('/dashboard')
+        }
     }
 
     return (
@@ -167,9 +176,10 @@ export default function OnboardingPage() {
                         <div>
                             <button
                                 onClick={handleFreeTier}
-                                className="px-8 py-4 rounded-xl border border-white/10 hover:bg-white/5 text-white font-bold text-sm uppercase tracking-wide transition-all whitespace-nowrap"
+                                disabled={isActivating}
+                                className="px-8 py-4 rounded-xl border border-white/10 hover:bg-white/5 text-white font-bold text-sm uppercase tracking-wide transition-all whitespace-nowrap disabled:opacity-50"
                             >
-                                Start for Free
+                                {isActivating ? 'Activating...' : 'Start for Free'}
                             </button>
                         </div>
                     </div>

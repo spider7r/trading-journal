@@ -40,12 +40,24 @@ export default async function DashboardLayout({
         .eq('id', user.id)
         .single()
 
-    // Check if we need to enforce plan (User selected paid plan but has no active subscription)
-    const isActive = userProfile?.subscription_status === 'active' || userProfile?.subscription_status === 'trialing'
-
-    if (userProfile && userProfile.onboarding_completed === false) {
-        redirect('/onboarding')
+    // Auto-activate free plan for new users instead of redirecting to onboarding
+    // This ensures users ALWAYS land directly on the dashboard
+    if (userProfile && userProfile.onboarding_completed === false && authUser) {
+        await supabase
+            .from('users')
+            .update({
+                onboarding_completed: true,
+                plan_tier: userProfile.plan_tier || 'free',
+                subscription_status: userProfile.subscription_status || 'free'
+            })
+            .eq('id', authUser.id)
     }
+
+    // Check if we need to enforce plan (User selected paid plan but has no active subscription)
+    const isActive = userProfile?.subscription_status === 'active' ||
+        userProfile?.subscription_status === 'trialing' ||
+        userProfile?.subscription_status === 'free' ||
+        !userProfile?.subscription_status // No profile = free tier
 
     return (
         <AccountProvider initialAccounts={accounts || []}>
