@@ -2,7 +2,6 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-const COINBASE_API_KEY = process.env.COINBASE_COMMERCE_API_KEY!
 const COINBASE_API_URL = 'https://api.commerce.coinbase.com/charges'
 
 const PLAN_PRICES: Record<string, { monthly: number; yearly: number }> = {
@@ -19,6 +18,11 @@ export async function createCryptoCheckout(
     planName: string,
     billingCycle: 'monthly' | 'yearly'
 ) {
+    // Read env var inside function body — NOT at module level.
+    // Module-level reads can get cached/inlined at build time by Next.js,
+    // causing the var to be undefined even when set in Vercel.
+    const COINBASE_API_KEY = process.env.COINBASE_COMMERCE_API_KEY
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -35,7 +39,7 @@ export async function createCryptoCheckout(
     const planLabel = planName.charAt(0).toUpperCase() + planName.slice(1)
 
     if (!COINBASE_API_KEY) {
-        console.error('[CryptoBilling] COINBASE_COMMERCE_API_KEY is not set')
+        console.error('[CryptoBilling] COINBASE_COMMERCE_API_KEY is not set. Value:', process.env.COINBASE_COMMERCE_API_KEY)
         return { error: 'Crypto payments are not configured. Please contact support.' }
     }
 
