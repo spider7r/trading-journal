@@ -40,17 +40,11 @@ export default async function DashboardLayout({
         .eq('id', user.id)
         .single()
 
-    // Auto-activate free plan for new users instead of redirecting to onboarding
-    // This ensures users ALWAYS land directly on the dashboard
-    if (userProfile && userProfile.onboarding_completed === false && authUser) {
-        await supabase
-            .from('users')
-            .update({
-                onboarding_completed: true,
-                plan_tier: userProfile.plan_tier || 'free',
-                subscription_status: userProfile.subscription_status || 'free'
-            })
-            .eq('id', authUser.id)
+    // New users see onboarding pricing screen first
+    // Free plan selection on that screen sets onboarding_completed=true → dashboard
+    // Paid plan selection → checkout
+    if (userProfile && userProfile.onboarding_completed === false) {
+        redirect('/onboarding')
     }
 
     // Check if we need to enforce plan (User selected paid plan but has no active subscription)
