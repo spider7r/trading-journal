@@ -15,16 +15,11 @@ export default async function DashboardLayout({
     const supabase = await createClient()
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
-    // GUEST MODE FALLBACK (Skip Auth)
-    const user = authUser || {
-        id: 'guest-user-id',
-        email: 'guest@tradal.com',
-        user_metadata: { full_name: 'Guest Trader' }
+    if (!authUser) {
+        redirect('/login')
     }
 
-    // if (!user) {
-    //     redirect('/login')
-    // }
+    const user = authUser
 
     // Fetch user accounts (will return empty for guest)
     const { data: accounts } = await supabase

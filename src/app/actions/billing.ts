@@ -83,9 +83,9 @@ export async function getCheckoutUrl(plan: string, interval: 'monthly' | 'yearly
                     },
                     product_options: {
                         // Redirect back to dashboard after purchase
-                        redirect_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://app.thetradal.com'}/dashboard`,
+                        redirect_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://the-tradal-main.vercel.app'}/dashboard`,
                         receipt_button_text: "Go to Dashboard",
-                        receipt_link_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://app.thetradal.com'}/dashboard`
+                        receipt_link_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://the-tradal-main.vercel.app'}/dashboard`
                     }
                 },
                 relationships: {
