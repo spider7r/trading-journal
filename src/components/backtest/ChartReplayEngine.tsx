@@ -58,10 +58,11 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
         return []
     })
 
-    // Update ref immediately if we have data
-    if (fullDataRef.current.length === 0 && fullData.length > 0) {
+    // CRITICAL FIX: Always keep fullDataRef in sync with fullData state
+    // This prevents stale ref reads in stepForward() that caused auto-pause
+    useEffect(() => {
         fullDataRef.current = fullData
-    }
+    }, [fullData])
 
     // Core State
     const [currentIndex, setCurrentIndex] = useState(() => {
@@ -76,7 +77,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
                     if (fullData[i].time <= tSec) return Math.max(0, i)
                 }
             }
-            return fullData.length - 1
+            return Math.max(0, Math.min(50, fullData.length - 1)) // Don't start at end!
         }
         return 0
     })
@@ -492,13 +493,15 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
         return () => window.clearInterval(timer)
     }, [saveSession])
 
-    // Replay Logic
+    // Replay Logic — FIXED: No longer calls setIsPlaying inside state updater
     const stepForward = useCallback(() => {
+        const dataLen = fullDataRef.current.length
+        if (dataLen === 0) return // No data yet
+
         setCurrentIndex(prev => {
-            const dataLen = fullDataRef.current.length
             if (prev >= dataLen - 1) {
-                console.warn(`[Backtest] ⛔ Reached end of data (index ${prev}/${dataLen}). Pausing.`)
-                setIsPlaying(false)
+                // Schedule pause OUTSIDE the state updater to avoid React batching issues
+                requestAnimationFrame(() => setIsPlaying(false))
                 return prev
             }
             return prev + 1
@@ -618,7 +621,11 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
 
                         const aggChunk = interval === '1m' ? finalChunk : aggregateCandles(finalChunk as Candle[], interval as Timeframe)
 
-                        setFullData(prev => [...(aggChunk as Candle[]), ...prev])
+                        setFullData(prev => {
+                            const updated = [...(aggChunk as Candle[]), ...prev]
+                            fullDataRef.current = updated // Keep ref in sync!
+                            return updated
+                        })
                         setCurrentIndex(prev => prev + aggChunk.length)
 
                         // No toast — silent background loading
@@ -783,7 +790,7 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
 
             <Dialog open={showOrderPanel} onOpenChange={setShowOrderPanel}>
                 <DialogContent className="sm:max-w-[420px] max-h-[85vh] overflow-y-auto bg-[#0A0A0A] border-white/5 text-white rounded-xl">
-                    <DialogHeader><DialogTitle className="text-sm font-bold text-white tracking-wide">Place Order</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle className="sr-only">Place Order</DialogTitle></DialogHeader>
                     <PlaceOrderDialog
                         currentPrice={fullData.length > 0 ? fullData[currentIndex]?.close || fullData[fullData.length - 1].close : 0}
                         balance={balance}
