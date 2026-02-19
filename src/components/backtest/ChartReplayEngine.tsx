@@ -782,8 +782,8 @@ export function ChartReplayEngine({ initialSession, initialTrades = [] }: ChartR
             />
 
             <Dialog open={showOrderPanel} onOpenChange={setShowOrderPanel}>
-                <DialogContent className="sm:max-w-[400px] bg-[#1e222d] border-[#2a2e39] text-[#d1d4dc]">
-                    <DialogHeader><DialogTitle>Place Order</DialogTitle></DialogHeader>
+                <DialogContent className="sm:max-w-[420px] max-h-[85vh] overflow-y-auto bg-[#0A0A0A] border-white/5 text-white rounded-xl">
+                    <DialogHeader><DialogTitle className="text-sm font-bold text-white tracking-wide">Place Order</DialogTitle></DialogHeader>
                     <PlaceOrderDialog
                         currentPrice={fullData.length > 0 ? fullData[currentIndex]?.close || fullData[fullData.length - 1].close : 0}
                         balance={balance}
